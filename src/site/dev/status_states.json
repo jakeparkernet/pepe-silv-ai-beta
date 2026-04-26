@@ -1,0 +1,37 @@
+[
+  {
+    "status": "prepass: scraping article",
+    "message_three": "Scraping Article",
+    "message_d3": "Scraping Article"
+  },
+  {
+    "status": "prepass: checking applicability",
+    "message_three": "Is this even an article about a company or product??",
+    "message_d3": "Checking Article Applicability"
+  },
+  {
+    "status": "prepass: extracting companies",
+    "message_three": "What companies are in here??",
+    "message_d3": "Extracting Companies"
+  },
+  {
+    "status": "prepass: resolving article subject",
+    "message_three": "Finding Article Subject",
+    "message_d3": "Finding Article Subject"
+  },
+  {
+    "status": "prepass: checking ownership tree",
+    "message_three": "Checking Site and Subject Ownership",
+    "message_d3": "Checking Site and Subject Ownership"
+  },
+  {
+    "status": "queued",
+    "message_three": "Queued For Investigation",
+    "message_d3": "Queued"
+  },
+  {
+    "status": "in-progress",
+    "message_three": "Investigating Article",
+    "message_d3": "Investigating"
+  }
+]

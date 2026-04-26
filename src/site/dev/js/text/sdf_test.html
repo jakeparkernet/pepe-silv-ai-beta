@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>SDF Text Debug</title>
+    <style>
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #111;
+            color: #eee;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            height: 100%;
+            width: 100%;
+        }
+
+        :root {
+            --debug-panel-width: 360px;
+            --atlas-preview-width: 360px;
+            --resizer-width: 6px;
+        }
+
+        #app {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: grid;
+            grid-template-columns: var(--debug-panel-width) var(--resizer-width) minmax(0, 1fr) var(--resizer-width) var(--atlas-preview-width);
+            grid-template-rows: minmax(0, 55vh) minmax(0, 1fr);
+            background: #111;
+        }
+
+        .panel-resizer {
+            grid-row: 1 / 2;
+            cursor: col-resize;
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        #debug-resizer {
+            grid-column: 2 / 3;
+        }
+
+        #atlas-resizer {
+            grid-column: 4 / 5;
+        }
+
+        /* Three.js canvas goes in the center column, top row */
+        #threejs-canvas {
+            grid-column: 3 / 4;
+            grid-row: 1 / 2;
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        #editor-ui {
+            display: flex;
+            height: 100%;
+            width: 100%;
+        }
+
+        /* Left column: Debug UI */
+        #debug-panel {
+            grid-column: 1 / 2;
+            grid-row: 1 / 2;
+
+            margin: 4px;
+            background: rgba(0, 0, 0, 0.65);
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 12px;
+            max-width: 100%;
+            box-sizing: border-box;
+            overflow-y: auto;
+            overflow-x: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #debug-panel .panel-content {
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        #debug-panel::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        #debug-panel::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 3px;
+        }
+
+        #debug-panel::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+        }
+
+        #debug-panel::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        #debug-panel h2 {
+            margin: 0;
+            font-size: 15px;
+            font-weight: 600;
+            color: #fff;
+            letter-spacing: 0.3px;
+        }
+
+        #debug-panel .row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        #debug-panel .row:has(textarea) {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        #debug-panel label {
+            min-width: 85px;
+            color: #aaa;
+            font-size: 11px;
+        }
+
+        #debug-panel .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            padding: 8px 0;
+            border-bottom: 1px solid #2a2a2a;
+        }
+
+        #debug-panel .control-group:last-child {
+            border-bottom: none;
+        }
+
+        #debug-panel input[type="range"] {
+            flex: 1;
+            height: 4px;
+            background: #333;
+            border-radius: 2px;
+            appearance: none;
+            cursor: pointer;
+        }
+
+        #debug-panel input[type="range"]::-webkit-slider-thumb {
+            appearance: none;
+            width: 14px;
+            height: 14px;
+            background: #eee;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: transform 0.15s ease;
+        }
+
+        #debug-panel input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        #debug-panel input[type="number"] {
+            width: 60px;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            color: #eee;
+            padding: 4px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+            transition: border-color 0.2s ease;
+        }
+
+        #debug-panel input[type="number"]:focus {
+            outline: none;
+            border-color: #666;
+        }
+
+        #debug-panel input[type="color"] {
+            width: 32px;
+            height: 24px;
+            padding: 0;
+            border-radius: 4px;
+            border: 1px solid #333;
+            background: transparent;
+            cursor: pointer;
+            transition: border-color 0.2s ease;
+        }
+
+        #debug-panel input[type="color"]:hover {
+            border-color: #555;
+        }
+
+        #debug-panel input[type="text"],
+        #debug-panel input[type="file"] {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            color: #eee;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            transition: border-color 0.2s ease;
+        }
+
+        #debug-panel input[type="text"]:focus {
+            outline: none;
+            border-color: #666;
+        }
+
+        #debug-panel input[type="file"] {
+            cursor: pointer;
+        }
+
+        #debug-panel select {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            color: #eee;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: border-color 0.2s ease;
+        }
+
+        #debug-panel select:focus {
+            outline: none;
+            border-color: #666;
+        }
+
+        #debug-panel textarea {
+            width: 100%;
+            height: 40px;
+            resize: vertical;
+            background: #1a1a1a;
+            color: #eee;
+            border: 1px solid #333;
+            border-radius: 4px;
+            padding: 6px 8px;
+            font-family: inherit;
+            font-size: 12px;
+            transition: border-color 0.2s ease;
+        }
+
+        #debug-panel textarea:focus {
+            outline: none;
+            border-color: #666;
+        }
+
+        #debug-panel button {
+            background: #2a2a2a;
+            border: 1px solid #444;
+            color: #eee;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        #debug-panel button:hover {
+            background: #3a3a3a;
+            border-color: #555;
+        }
+
+        #debug-panel button:active {
+            background: #1a1a1a;
+            transform: translateY(1px);
+        }
+
+        #debug-panel .section-header {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #666;
+            margin-top: 12px;
+            margin-bottom: 4px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid #333;
+        }
+
+        #debug-panel .section-header:first-of-type {
+            margin-top: 0;
+        }
+
+        /* Atlas preview: right column, top row */
+        #atlas-preview {
+            grid-column: 5 / 6;
+            grid-row: 1 / 2;
+
+            min-width: 350px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 10px;
+            box-sizing: border-box;
+            gap: 8px;
+        }
+
+        #atlas-preview h3 {
+            margin: 0;
+            font-size: 12px;
+            font-weight: 600;
+            opacity: 0.8;
+        }
+
+        #atlas-preview-box {
+            width: 100%;
+            height: 100%;
+            aspect-ratio: 1 / 1;
+            background: #222;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            overflow: hidden;
+        }
+
+        #atlas-preview-box canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            image-rendering: pixelated;
+        }
+
+        /* Glyph editor: entire bottom row */
+        #glyph-editor {
+            grid-column: 1 / 6;
+            grid-row: 2 / 3;
+
+            padding: 12px 14px 14px;
+            background: rgba(0, 0, 0, 0.8);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            box-sizing: border-box;
+            font-size: 11px;
+            overflow-y: auto;
+        }
+
+        #glyph-editor::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        #glyph-editor::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        #glyph-editor::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 4px;
+        }
+
+        #glyph-editor::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.25);
+        }
+
+        #glyph-editor h3 {
+            margin: 0 0 10px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #fff;
+            letter-spacing: 0.3px;
+        }
+
+        #glyph-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+            gap: 10px;
+        }
+
+        .glyph-cell {
+            border-radius: 6px;
+            border: 1px solid #2a2a2a;
+            padding: 10px 12px;
+            background: rgba(20, 20, 20, 0.6);
+            display: flex;
+            gap: 12px;
+            min-height: 100px;
+        }
+
+        .glyph-cell.glyph-inactive {
+            opacity: 0.4;
+            border-style: dashed;
+            border-color: #222;
+        }
+
+        .glyph-cell-left {
+            flex: 0 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 80px;
+        }
+
+        .glyph-cell-left .glyph-char-span {
+            font-size: 48px;
+            font-weight: 600;
+            color: #fff;
+            line-height: 1;
+        }
+
+        .glyph-cell-right {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .glyph-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+        }
+
+        .glyph-header button {
+            font-size: 10px;
+            padding: 3px 8px;
+            border-radius: 4px;
+            border: 1px solid #333;
+            background: #1a1a1a;
+            color: #aaa;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .glyph-header button:hover {
+            border-color: #555;
+            color: #eee;
+        }
+
+        .glyph-header .glyph-active-btn {
+            background: #1a2a1a;
+            border-color: #2a442a;
+            color: #8f8;
+        }
+
+        .glyph-header .glyph-active-btn:hover {
+            background: #2a3a2a;
+            border-color: #4a6a4a;
+        }
+
+        .glyph-cell.glyph-add-cell {
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            text-align: center;
+            min-height: 100px;
+            background: rgba(20, 20, 20, 0.3);
+            border-style: dashed;
+            border-color: #333;
+        }
+
+        .glyph-cell.glyph-add-cell:hover {
+            background: rgba(30, 30, 30, 0.5);
+            border-color: #444;
+        }
+
+        .glyph-add-cell > *:only-child {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .glyph-add-cell label {
+            font-size: 11px;
+            font-weight: 600;
+            color: #888;
+        }
+
+        .glyph-add-cell input[type="text"] {
+            background: #111;
+            border: 1px solid #333;
+            color: #eee;
+            padding: 5px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            width: 100px;
+        }
+
+        .glyph-add-cell input[type="text"]:focus {
+            outline: none;
+            border-color: #555;
+        }
+
+        .glyph-add-cell button {
+            font-size: 11px;
+            padding: 5px 12px;
+            border-radius: 4px;
+            border: 1px solid #444;
+            background: #222;
+            color: #ddd;
+            cursor: pointer;
+        }
+
+        .glyph-add-cell button:hover {
+            background: #333;
+            border-color: #555;
+            color: #fff;
+        }
+
+        .glyph-input-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 10px;
+        }
+
+        .glyph-input-row label {
+            flex: 0 0 24px;
+            color: #888;
+            font-size: 10px;
+        }
+
+        .glyph-input-row input[type="range"] {
+            flex: 1;
+            height: 3px;
+            background: #333;
+            border-radius: 2px;
+            appearance: none;
+            cursor: pointer;
+        }
+
+        .glyph-input-row input[type="range"]::-webkit-slider-thumb {
+            appearance: none;
+            width: 12px;
+            height: 12px;
+            background: #ddd;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .glyph-input-row input[type="number"] {
+            flex: 0 0 50px;
+            min-width: 0;
+            background: #111;
+            border: 1px solid #333;
+            color: #ccc;
+            border-radius: 3px;
+            padding: 3px 5px;
+            font-size: 10px;
+            box-sizing: border-box;
+        }
+
+        .glyph-input-row input[type="number"]:focus {
+            outline: none;
+            border-color: #555;
+        }
+
+        .glyph-cell.glyph-selected {
+            border-color: #4a9;
+            box-shadow: 0 0 0 1px #4a9, 0 0 12px rgba(68, 170, 153, 0.4);
+        }
+    </style>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "../thirdparty/three.js-r181/three.module.js",
+            "three/addons/": "../thirdparty/three.js-r181/examples/jsm/"
+        }
+    }
+    </script>
+</head>
+
+<body>
+    <div id="app">
+        <!-- Left column: Debug UI -->
+        <div id="debug-panel">
+            <div class="panel-content">
+                <h2>SDF Text Debug</h2>
+
+                <div class="control-group">
+                    <div class="row">
+                        <button id="downloadAtlasBtn">Download JSON + PNG</button>
+                    </div>
+                </div>
+
+                <div class="section-header">Font</div>
+                <div class="control-group">
+                    <div class="row">
+                        <label for="fontFileInput">Upload</label>
+                        <input id="fontFileInput" type="file" accept=".ttf,.otf,.woff,.woff2" />
+                    </div>
+                    <div class="row">
+                        <label for="fontPathInput">Path</label>
+                        <input id="fontPathInput" type="text" placeholder="fonts/Roboto-Regular.ttf" />
+                    </div>
+                    <div class="row">
+                        <label for="fontFamilyInput">Family</label>
+                        <input id="fontFamilyInput" type="text" placeholder="Roboto" />
+                    </div>
+                    <div class="row">
+                        <label for="atlasSizeInput">Atlas size</label>
+                        <input id="atlasSizeInput" type="number" min="64" max="4096" step="64" value="1024" />
+                    </div>
+                    <div class="row">
+                        <button id="loadFontBtn">Load Font</button>
+                    </div>
+                </div>
+
+                <div class="section-header">Import Atlas</div>
+                <div class="control-group">
+                    <div class="row">
+                        <label for="atlasJsonInput">JSON</label>
+                        <input id="atlasJsonInput" type="file" accept=".json">
+                    </div>
+                    <div class="row">
+                        <label for="atlasPngInput">PNG</label>
+                        <input id="atlasPngInput" type="file" accept="image/png">
+                    </div>
+                    <div class="row">
+                        <button id="loadAtlasBtn">Load JSON + PNG</button>
+                    </div>
+                </div>
+
+                <div class="section-header">Text Settings</div>
+                <div class="control-group">
+                    <div class="row">
+                        <label for="textInput">Text</label>
+                    </div>
+                    <div class="row">
+                        <textarea id="textInput" placeholder="Hello World"></textarea>
+                    </div>
+                </div>
+
+                <div class="section-header">Transform</div>
+                <div class="control-group">
+                    <div class="row">
+                        <label for="rotationSlider">Rotation</label>
+                        <input id="rotationSlider" type="range" min="0" max="360.0" step="1" value="0" />
+                        <input id="rotationNum" type="number" step="1" value="0" />
+                    </div>
+                    <div class="row">
+                        <label for="fontSize">Font size</label>
+                        <input id="fontSize" type="range" min="0.1" max="4.0" step="0.05" value="1" />
+                        <input id="fontSizeNum" type="number" step="0.05" value="1" />
+                    </div>
+                </div>
+
+                <div class="section-header">SDF</div>
+                <div class="control-group">
+                    <div class="row">
+                        <label for="threshold">Threshold</label>
+                        <input id="threshold" type="range" min="0.3" max="1.0" step="0.01" value="0.75" />
+                        <input id="thresholdNum" type="number" step="0.01" value="0.75" />
+                    </div>
+                    <div class="row">
+                        <label for="softness">Softness</label>
+                        <input id="softness" type="range" min="0.05" max="2.0" step="0.01" value="0.3" />
+                        <input id="softnessNum" type="number" step="0.01" value="0.3" />
+                    </div>
+                </div>
+
+                <div class="section-header">Style</div>
+                <div class="control-group">
+                    <div class="row">
+                        <label for="outlineThickness">Outline</label>
+                        <input id="outlineThickness" type="range" min="0.0" max="0.4" step="0.01" value="0.08" />
+                        <input id="outlineThicknessNum" type="number" step="0.01" value="0.08" />
+                    </div>
+                    <div class="row">
+                        <label for="color">Color</label>
+                        <input id="color" type="color" value="#ffffff" />
+                        <label for="outlineColor">Outline</label>
+                        <input id="outlineColor" type="color" value="#000000" />
+                    </div>
+                    <div class="row">
+                        <label for="alignSelect">Align</label>
+                        <select id="alignSelect">
+                            <option value="left">left</option>
+                            <option value="center" selected>center</option>
+                            <option value="right">right</option>
+                        </select>
+                    </div>
+                    <div class="row">
+                        <label for="anchorSelect">Anchor</label>
+                        <select id="anchorSelect">
+                            <option value="top-left">top-left</option>
+                            <option value="top-center">top-center</option>
+                            <option value="top-right">top-right</option>
+                            <option value="center-left">center-left</option>
+                            <option value="center" selected>center</option>
+                            <option value="center-right">center-right</option>
+                            <option value="bottom-left">bottom-left</option>
+                            <option value="bottom-center">bottom-center</option>
+                            <option value="bottom-right">bottom-right</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Resizer between debug panel and Three canvas -->
+        <div id="debug-resizer" class="panel-resizer"></div>
+
+        <!-- Center column: ThreeJS canvas (injected by JS as <canvas> into #app) -->
+        <div id="threejs-canvas"></div>
+
+        <!-- Resizer between Three canvas and atlas preview -->
+        <div id="atlas-resizer" class="panel-resizer"></div>
+
+        <!-- Right column: Atlas preview square -->
+        <div id="atlas-preview">
+            <h3>Atlas preview</h3>
+            <div id="atlas-preview-box">
+                <!-- Later you can draw your atlas texture here, for now it's a square placeholder -->
+            </div>
+        </div>
+
+        <!-- Bottom row: Glyph editor spanning all columns -->
+        <div id="glyph-editor">
+            <h3>Glyph editor</h3>
+            <div id="glyph-grid"></div>
+        </div>
+    </div>
+
+    <script type="module" src="./main.js"></script>
+</body>
+
+</html>

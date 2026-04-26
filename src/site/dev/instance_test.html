@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Three.js Instanced Planes Example</title>
+  <link rel="stylesheet" href="main.css">
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+    }
+
+    canvas {
+      display: block;
+    }
+  </style>
+
+  <script type="importmap">
+    {
+        "imports": {
+            "three": "./js/thirdparty/three.js-r181/three.module.js",
+            "three/addons/": "./js/thirdparty/three.js-r181/examples/jsm/"
+        }
+    }
+    </script>
+  <script src="./js/thirdparty/stats.min.js"></script>
+</head>
+
+<body>
+  <script type="module" defer>
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+
+    let stats = new Stats();
+    stats.showPanel(0);
+    document.body.appendChild(stats.dom);
+    // Basic setup
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x202020);
+
+    const camera = new THREE.PerspectiveCamera(
+      60,
+      window.innerWidth / window.innerHeight,
+      0.1,
+      1000
+    );
+    camera.position.set(0, 0, 150);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+
+    // Instanced mesh: 10k planes, 1x1, basic material
+    const count = 10000;
+    const planeGeometry = new THREE.PlaneGeometry(1, 1);
+    const planeMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      side: THREE.DoubleSide
+    });
+
+    const instancedMesh = new THREE.InstancedMesh(
+      planeGeometry,
+      planeMaterial,
+      count
+    );
+    scene.add(instancedMesh);
+
+    // Arrange instances in a 100x100 grid
+    const dummy = new THREE.Object3D();
+    const gridSize = 100;     // 100 x 100 = 10,000
+    const spacing = 1.2;      // distance between planes
+
+    let index = 0;
+    const half = (gridSize - 1) * spacing * 0.5;
+
+    for (let x = 0; x < gridSize; x++) {
+      for (let y = 0; y < gridSize; y++) {
+        dummy.position.set(
+          x * spacing - half,
+          y * spacing - half,
+          0
+        );
+
+        // Rotate each plane a bit if you like
+        dummy.rotation.z = (x + y) * 0.01;
+
+        dummy.updateMatrix();
+        instancedMesh.setMatrixAt(index++, dummy.matrix);
+      }
+    }
+    instancedMesh.instanceMatrix.needsUpdate = true;
+
+    // Optional: simple rotation of the whole cloud
+    function animate() {
+      requestAnimationFrame(animate);
+
+      stats.begin();
+      instancedMesh.rotation.y += 0.001;
+      instancedMesh.rotation.x += 0.0005;
+
+      controls.update();
+      renderer.render(scene, camera);
+      stats.end();
+    }
+
+    animate();
+
+    // Handle resize
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+
+</html>

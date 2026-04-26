@@ -1,0 +1,7 @@
+{
+    "capabilities": {
+        "cpu": 0,
+        "net": 4,
+        "gpu": 1
+    }
+}

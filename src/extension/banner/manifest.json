@@ -1,0 +1,38 @@
+{
+  "manifest_version": 3,
+  "name": "Pepe Silv.AI",
+  "version": "1.0.0",
+  "description": "Adds the Pepe Silv.AI summary banner to the top of any supported page.",
+
+  "permissions": [
+    "tabs"
+  ],
+
+  "host_permissions": [
+    "https://ukxcjdimupajklqdxbvr.supabase.co/*"
+  ],
+
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+
+  "action": {
+    "default_popup": "popup.html"
+  },
+
+ "icons": {
+   "16": "extension_icon16.png",
+   "32": "extension_icon32.png",
+   "48": "extension_icon48.png",
+   "128": "extension_icon128.png"
+ },
+ 
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+class OwnershipModel {
+}
+
+export { OwnershipModel };

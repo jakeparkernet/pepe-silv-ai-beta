@@ -1,0 +1,104 @@
+{
+    "id": "investigation0",
+    "topOwner": "entity1",
+    "entities": [
+        {
+            "id": "entity0",
+            "name": "General Motors",
+            "aliases": [
+                "GM",
+                "General Motors"
+            ],
+            "type": "ORG",
+            "relationships": []
+        },
+        {
+            "id": "entity1",
+            "name": "Blackrock",
+            "aliases": [
+                "Blackrock"
+            ],
+            "type": "ORG",
+            "relationships": [
+                "relationship0",
+                "relationship1"
+            ]
+        }
+    ],
+    "relationships": [
+        {
+            "id": "relationship0",
+            "source_entity": "entity1",
+            "target_entity": "entity0",
+            "relation": "owns",
+            "evidence": [
+                "evidence0"
+            ],
+            "type": "ownership"
+        },
+        {
+            "id": "relationship1",
+            "source_entity": "entity1",
+            "target_entity": "news0",
+            "relation": "owns",
+            "evidence": [
+                "evidence1"
+            ],
+            "type": "ownership"
+        },
+        {
+            "id": "relationship2",
+            "source_entity": "news0",
+            "target_entity": "entity0",
+            "relation": "wrote about",
+            "evidence": [
+                "evidence2"
+            ],
+            "type": "misc"
+        }
+    ],
+    "evidence": [
+        {
+            "id": "evidence0",
+            "excerpt": "Blackrock owns GM",
+            "source": "blackrock.com",
+            "data": "1/1/10"
+        },
+        {
+            "id": "evidence1",
+            "excerpt": "Blackrock owns The Verge",
+            "source": "blackrock.com",
+            "data": "1/1/10"
+        },
+        {
+            "id": "evidence2",
+            "excerpt": "GM announced today...",
+            "source": "theverge.com/news",
+            "data": "1/1/10"
+        }
+    ],
+    "subjectRelationships": [
+        "relationship0"
+    ],
+    "newsSiteRelationships": [
+        "relationship1",
+        "relationship2"
+    ],
+    "newsSite": {
+        "id": "news0",
+        "domain": "theverge.com",
+        "name": "The Verge",
+        "aliases": [
+            "Verge",
+            "The Verge"
+        ]
+    },
+    "article": {
+        "id": "article0",
+        "url": "theverge.com/news",
+        "subjects": [
+            "entity0"
+        ],
+        "newsSite": "news0"
+    }
+}

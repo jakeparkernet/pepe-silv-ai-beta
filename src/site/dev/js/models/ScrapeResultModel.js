@@ -1,0 +1,4 @@
+class ScrapeResultModel {
+}
+
+export { ScrapeResultModel };

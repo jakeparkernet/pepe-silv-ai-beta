@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Atlas Block Sampling – Instancing Fixed (r181)</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+        }
+    </style>
+
+    <!-- three.js r181 import map -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "./js/thirdparty/three.js-r181/three.module.js",
+            "three/addons/": "./js/thirdparty/three.js-r181/examples/jsm/"
+        }
+    }
+    </script>
+</head>
+
+<body>
+    <script type="module">
+        import * as THREE from "three";
+        import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+        /* ------------------------------------------------- Scene ------------------------------------------------- */
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x202025);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(2.5, 2.5, 2.5);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.target.set(0, 0, 0);
+        controls.update();
+
+        window.addEventListener("resize", () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Simple easing functions in [0,1] -> [0,1]
+        const BLUR_EASINGS = {
+            linear: t => t,
+            easeInQuad: t => t * t,
+            easeOutQuad: t => t * (2.0 - t),
+            easeInOutQuad: t => (t < 0.5)
+                ? 2.0 * t * t
+                : -1.0 + (4.0 - 2.0 * t) * t,
+
+            easeInCubic: t => t * t * t,
+            easeOutCubic: t => (--t) * t * t + 1.0,
+            easeInOutCubic: t => (t < 0.5)
+                ? 4.0 * t * t * t
+                : (t - 1.0) * (2.0 * t - 2.0) * (2.0 * t - 2.0) + 1.0
+        };
+
+        /* ------------------------------------------------- Shaders ------------------------------------------------- */
+        const vertexShader = /* glsl */ `
+    #define USE_INSTANCING
+
+    // ---- custom attributes -------------------------------------------------
+    attribute vec2 customUV;
+    attribute float stripIndex;
+
+    // ---- instancing --------------------------------------------------------
+    // instanceMatrix is automatically injected by Three.js
+    // DO NOT redeclare it
+
+    // ---- varyings ----------------------------------------------------------
+    varying vec2 vCustomUV;
+    varying float vStripIndex;
+
+    void main() {
+        vCustomUV   = customUV;
+        vStripIndex = stripIndex;
+
+        vec4 mvPos = vec4(position, 1.0);
+
+        #ifdef USE_INSTANCING
+            mvPos = instanceMatrix * mvPos;
+        #endif
+
+        mvPos = modelMatrix * mvPos;
+        mvPos = viewMatrix   * mvPos;
+
+        gl_Position = projectionMatrix * mvPos;
+    }
+`;
+
+        const fragmentShader = /* glsl */ `
+    precision highp float;
+
+    varying vec2 vCustomUV;
+    varying float vStripIndex;
+
+    uniform sampler2D atlasTex;
+    uniform vec2 atlasGridSize;      // cols, rows in tiles
+    uniform vec2 blockOriginTiles;   // base origin for strip 0
+    uniform vec2 blockSizeTiles;     // width, height of one strip in tiles
+    uniform float blockRepeat;
+    uniform vec2 centerOffset;
+
+    void main() {
+        vec2 localUV = fract(vCustomUV * blockRepeat + centerOffset);
+
+        vec2 stripOriginTiles = blockOriginTiles +
+            vec2(vStripIndex * blockSizeTiles.x, 0.0);
+
+        vec2 tileSizeUV    = 1.0 / atlasGridSize;
+        vec2 blockOriginUV = stripOriginTiles * tileSizeUV;
+        vec2 blockSizeUV   = blockSizeTiles   * tileSizeUV;
+
+        vec2 uv = blockOriginUV + localUV * blockSizeUV;
+
+        gl_FragColor = texture2D(atlasTex, uv);
+    }
+`;
+
+        /* ------------------------------------------------- Atlas ------------------------------------------------- */
+        const atlasCols = 4, atlasRows = 256;
+
+        const texW = atlasCols, texH = atlasRows;
+        const data = new Uint8Array(4 * texW * texH);
+
+        const A1 = new THREE.Color(0xffffff);
+        const A2 = new THREE.Color(0x000000);
+        const B1 = new THREE.Color(0xff4444);
+        const B2 = new THREE.Color(0x4444ff);
+
+        const lineWidth = 1;                 // in pixels
+        const lineSpacing = 8;                 // distance between lines (in pixels)
+        const lineColor = new THREE.Color(0x00ff00); // pick any color
+
+        function createStripTexture({
+            width = 256,
+            height = 256,
+
+            background = new THREE.Color(0x000000),
+
+            // Regular repeating lines
+            lineColor = new THREE.Color(0xffffff),
+            lineSpacing = 16,   // distance between line centers (in pixels)
+            lineWidth = 1,      // thickness of each line (in pixels)
+
+            // Top line
+            topLineOffset = 0,   // y-position of the *first* line center minus half lineWidth
+            topLineColor = null, // optional distinct color; defaults to lineColor if null
+
+            // Blur config
+            blurRadius = 0,               // how many pixels the blur extends beyond the core line
+            blurEasingName = "linear"     // key into BLUR_EASINGS
+        }) {
+            const data = new Uint8Array(4 * width * height);
+            const actualTopLineColor = topLineColor || lineColor;
+
+            const easing = BLUR_EASINGS[blurEasingName] || BLUR_EASINGS.linear;
+
+            const bg = { r: background.r, g: background.g, b: background.b };
+            const lc = { r: lineColor.r, g: lineColor.g, b: lineColor.b };
+            const tlc = { r: actualTopLineColor.r, g: actualTopLineColor.g, b: actualTopLineColor.b };
+
+            function setPixel(x, y, c) {
+                const i = (y * width + x) * 4;
+                data[i + 0] = Math.round(c.r * 255);
+                data[i + 1] = Math.round(c.g * 255);
+                data[i + 2] = Math.round(c.b * 255);
+                data[i + 3] = 255;
+            }
+
+            function mixColor(out, cA, cB, t) {
+                out.r = cA.r + (cB.r - cA.r) * t;
+                out.g = cA.g + (cB.g - cA.g) * t;
+                out.b = cA.b + (cB.b - cA.b) * t;
+            }
+
+            const rowColor = { r: 0, g: 0, b: 0 };
+            const halfCore = lineWidth * 0.5;
+
+            for (let y = 0; y < height; y++) {
+                // default: background
+                rowColor.r = bg.r;
+                rowColor.g = bg.g;
+                rowColor.b = bg.b;
+
+                // distance from first line origin
+                const dy = y - topLineOffset;
+
+                // nearest line index (can be above or below), but clamp to >= 0 so
+                // there is no "ghost" line above the first one
+                let lineIndex = Math.round(dy / lineSpacing);
+                if (lineIndex < 0) lineIndex = 0;
+
+                // center of that line
+                const lineCenterY = topLineOffset + lineIndex * lineSpacing + halfCore;
+
+                // pixel center for smoother falloff
+                const pixelCenterY = y + 0.5;
+                const distToCenter = Math.abs(pixelCenterY - lineCenterY);
+
+                let t = 0.0;
+
+                if (distToCenter <= halfCore) {
+                    // inside core line
+                    t = 1.0;
+                } else if (blurRadius > 0 && distToCenter <= halfCore + blurRadius) {
+                    // in blur region on EITHER side
+                    const blurDist = distToCenter - halfCore;
+                    const raw = 1.0 - blurDist / blurRadius;   // 1 at core edge, 0 at outer blur edge
+                    t = easing(Math.max(0.0, Math.min(1.0, raw)));
+                }
+
+                if (t > 0.0) {
+                    const baseLine = (lineIndex === 0) ? tlc : lc;
+                    mixColor(rowColor, bg, baseLine, t);
+                }
+
+                // write whole row
+                for (let x = 0; x < width; x++) {
+                    setPixel(x, y, rowColor);
+                }
+            }
+
+            const tex = new THREE.DataTexture(data, width, height, THREE.RGBAFormat);
+            tex.flipY = true;
+            tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+            tex.repeat.set(1, 1);
+            tex.offset.set(0, 0);
+            tex.needsUpdate = true;
+            return tex;
+        }
+
+        const atlasTex = createStripTexture({
+            width: 2,
+            height: 512,
+            background: new THREE.Color(0xFFFFFF),
+
+            lineColor: new THREE.Color(0x0000ff),
+            lineSpacing: 80,
+            lineWidth: 1,
+
+            topLineOffset: 10,
+            topLineColor: new THREE.Color(0xff0000),
+
+            blurRadius: 16,               // try 0–8 px
+            blurEasingName: "linear"  // try "linear", "easeOutQuad", etc.
+        });
+
+        /* ------------------------------------------------- Geometry ------------------------------------------------- */
+        let geo = new THREE.PlaneGeometry(1, 1).toNonIndexed();
+        const pos = geo.attributes.position;
+        const verts = pos.count;
+        const customUVs = new Float32Array(verts * 2);
+        for (let i = 0; i < verts; i++) {
+            customUVs[i * 2 + 0] = (pos.getX(i) + 0.5);
+            customUVs[i * 2 + 1] = (pos.getY(i) + 0.5);
+        }
+        geo.setAttribute('customUV', new THREE.BufferAttribute(customUVs, 2));
+
+        /* per-instance strip index */
+        const instanceCount = 2;
+        const stripIdx = new Float32Array(instanceCount);
+        stripIdx[0] = 0.0;   // left strip
+        stripIdx[1] = 1.0;   // right strip
+        geo.setAttribute('stripIndex', new THREE.InstancedBufferAttribute(stripIdx, 1));
+
+        /* ------------------------------------------------- Material ------------------------------------------------- */
+        const material = new THREE.ShaderMaterial({
+            vertexShader,
+            fragmentShader,
+            uniforms: {
+                atlasTex: { value: atlasTex },
+                atlasGridSize: { value: new THREE.Vector2(atlasCols, atlasRows) },
+                blockOriginTiles: { value: new THREE.Vector2(0, 0) },
+                blockSizeTiles: { value: new THREE.Vector2(2, 512) },
+                blockRepeat: { value: 1.0 },
+                centerOffset: { value: new THREE.Vector2(0, -0.5) }
+            }
+        });
+
+        /* ------------------------------------------------- InstancedMesh ------------------------------------------------- */
+        const mesh = new THREE.InstancedMesh(geo, material, instanceCount);
+        const dummy = new THREE.Object3D();
+
+        dummy.position.set(-0.75, 0, 0); dummy.updateMatrix(); mesh.setMatrixAt(0, dummy.matrix);
+        dummy.position.set(0.75, 0, 0); dummy.updateMatrix(); mesh.setMatrixAt(1, dummy.matrix);
+
+        mesh.instanceMatrix.needsUpdate = true;
+        scene.add(mesh);
+
+        /* ------------------------------------------------- Controls ------------------------------------------------- */
+        window.addEventListener('keydown', e => {
+            const u = material.uniforms;
+            if (e.key === '+') u.blockRepeat.value *= 2;
+            if (e.key === '-') u.blockRepeat.value = Math.max(0.25, u.blockRepeat.value * 0.5);
+            const s = 0.1, c = u.centerOffset.value;
+            if (e.key === 'ArrowRight') c.x += s;
+            if (e.key === 'ArrowLeft') c.x -= s;
+            if (e.key === 'ArrowUp') c.y += s;
+            if (e.key === 'ArrowDown') c.y -= s;
+        });
+
+        /* ------------------------------------------------- Render ------------------------------------------------- */
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+    </script>
+</body>
+
+</html>
