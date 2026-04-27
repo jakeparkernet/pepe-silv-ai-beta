@@ -1179,7 +1179,14 @@ class ArticleD3Graph {
       }
     }
 
-    const simulation = d3.forceSimulation(filteredGraph.nodes)
+    for (const link of filteredGraph.links) {
+      if (typeof link.source !== "string") link.source = link.source.id;
+      if (typeof link.target !== "string") link.target = link.target.id;
+    }
+
+    let simulation;
+    try {
+    simulation = d3.forceSimulation(filteredGraph.nodes)
       .force("link", d3.forceLink(filteredGraph.links)
         .id((d) => d.id)
         .distance((d) => (d.kind === "chain" ? 260 : 340))
@@ -1199,6 +1206,10 @@ class ArticleD3Graph {
     for (let i = 0; i < 300; i++) {
       simulation.tick();
       this.enforceNoCommonOwnerXBounds(filteredGraph.nodes);
+    }
+    } catch (err) {
+      console.warn("[ArticleD3Graph] position sim failed:", err.message);
+      return null;
     }
 
     const positions = new Map();
