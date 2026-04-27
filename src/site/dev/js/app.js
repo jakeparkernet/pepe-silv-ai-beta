@@ -2595,6 +2595,11 @@ class App {
         this.composer?.setSize(width, height, false);
         this.camera.aspect = width / height;
         this.camera.updateProjectionMatrix();
+        this.articleStatusD3?.resize();
+
+        if (this.visualizationMode === "d3") {
+            this.d3Graph?.resize();
+        }
     }
 
     initializeVisualizationToggle() {

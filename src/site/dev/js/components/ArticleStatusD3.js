@@ -76,6 +76,12 @@ class ArticleStatusD3 {
         const rect = this.container?.getBoundingClientRect?.();
         this.width = Math.max(320, Math.floor(rect?.width || window.innerWidth || DEFAULT_GRAPH_WIDTH));
         this.height = Math.max(320, Math.floor(rect?.height || window.innerHeight || DEFAULT_GRAPH_HEIGHT));
+
+        this.svg
+            .attr("viewBox", `0 0 ${this.width} ${this.height}`)
+            .attr("width", this.width)
+            .attr("height", this.height);
+
         this.render();
     }
 
