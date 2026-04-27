@@ -316,6 +316,113 @@ body {
     display: block;
 }
 
+.article-status-html-root {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+}
+
+.article-status-html-frame {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    min-height: 112px;
+}
+
+.article-status-html-track {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    border-radius: 999px;
+    background: rgba(122, 106, 77, 0.35);
+    transform-origin: left center;
+}
+
+.article-status-html-track.is-vertical {
+    top: 0;
+    bottom: 0;
+    left: 19px;
+    right: auto;
+    width: 4px;
+    height: auto;
+    transform-origin: center top;
+}
+
+.article-status-html-track-active {
+    background: #7c5b2a;
+}
+
+.article-status-html-point {
+    position: absolute;
+    top: 0;
+    width: var(--article-status-label-max-width, 120px);
+    margin-left: calc(var(--article-status-label-max-width, 120px) / -2);
+}
+
+.article-status-html-point.is-vertical {
+    left: 0;
+    width: calc(100% - 40px);
+    margin-left: 0;
+    padding-left: 40px;
+    transform: translateY(-50%);
+    box-sizing: border-box;
+}
+
+.article-status-html-dot {
+    width: 20px;
+    height: 20px;
+    margin: -8px auto 0;
+    border-radius: 50%;
+    box-sizing: border-box;
+    border: 2.5px solid #7c5b2a;
+    background: rgba(255, 252, 244, 0.94);
+}
+
+.article-status-html-point.is-vertical .article-status-html-dot {
+    margin: -8px 0 0 -10px;
+}
+
+.article-status-html-point.is-reached .article-status-html-dot {
+    background: #7c5b2a;
+}
+
+.article-status-html-label {
+    width: 100%;
+    max-width: 100%;
+    margin-top: 16px;
+    color: #24180d;
+    font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.2;
+    text-align: center;
+    white-space: normal;
+    word-break: normal;
+    overflow-wrap: anywhere;
+}
+
+.article-status-html-point.is-vertical .article-status-html-label {
+    width: 100%;
+    margin-top: -2px;
+    text-align: left;
+}
+
+.article-status-html-frame.is-compact {
+    min-height: 96px;
+}
+
+.article-status-html-frame.is-compact .article-status-html-label {
+    margin-top: 14px;
+    font-size: 10px;
+}
+
+.article-status-html-frame.is-compact .article-status-html-point.is-vertical .article-status-html-label {
+    margin-top: -1px;
+}
+
 #mobile-top-shell,
 #mobile-bottom-shell {
     position: absolute;

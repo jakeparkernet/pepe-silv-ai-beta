@@ -179,6 +179,19 @@ class CameraController {
         this._syncCameraFromPasses(performance.now() / 1000);
     }
 
+    resetViewImmediate({ panBase = null, zoom = null } = {}) {
+        const nextPanBase = panBase ?? this._constructPos;
+
+        this.clearIdleHome();
+        this._panPass.setPanBase(nextPanBase);
+
+        if (zoom != null) {
+            this._zoomPass.setZoomImmediate(zoom);
+        }
+
+        this._syncCameraFromPasses(performance.now() / 1000);
+    }
+
     enable(enabled = true) {
         this._panPass.enable(enabled);
     }

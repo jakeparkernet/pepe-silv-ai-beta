@@ -166,7 +166,7 @@ class App {
         this.setForegroundInteractive = this.setForegroundInteractive.bind(this);
         this.applyCameraZoomPreset = this.applyCameraZoomPreset.bind(this);
         this.applyArticleStatusCameraZoom = this.applyArticleStatusCameraZoom.bind(this);
-        this.applyResolvedArticleCameraZoom = this.applyResolvedArticleCameraZoom.bind(this);
+        this.applyResolvedArticleCameraView = this.applyResolvedArticleCameraView.bind(this);
         this.hideForeground = this.hideForeground.bind(this);
         this.showForeground = this.showForeground.bind(this);
         this.handleInitialUrlParam = this.handleInitialUrlParam.bind(this);
@@ -2209,7 +2209,7 @@ class App {
 
         this.scene.add(articleView.getRootGroup());
         this.startArticleLightingIntro();
-        this.applyResolvedArticleCameraZoom();
+        this.applyResolvedArticleCameraView();
         this.cameraController?.enable(true);
         await this.fadeOutForeground();
         console.log(articleObject);
@@ -2500,7 +2500,14 @@ class App {
         this.applyCameraZoomPreset(CAMERA_STATUS_ZOOM);
     }
 
-    applyResolvedArticleCameraZoom() {
+    applyResolvedArticleCameraView() {
+        if (this.cameraController?.resetViewImmediate != null) {
+            this.cameraController.resetViewImmediate({
+                zoom: CAMERA_ARTICLE_VIEW_ZOOM
+            });
+            return;
+        }
+
         this.applyCameraZoomPreset(CAMERA_ARTICLE_VIEW_ZOOM);
     }
 
