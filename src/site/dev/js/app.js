@@ -174,6 +174,8 @@ class App {
         this.initializeNewSearch = this.initializeNewSearch.bind(this);
         this.initializeShareButton = this.initializeShareButton.bind(this);
         this.initializeSupportCta = this.initializeSupportCta.bind(this);
+        this.updateSupportButtonsScale = this.updateSupportButtonsScale.bind(this);
+        this.updateMobileViewportAnchors = this.updateMobileViewportAnchors.bind(this);
         this.renderRelationshipKey = this.renderRelationshipKey.bind(this);
         this.updateRelationshipKeyVisibility = this.updateRelationshipKeyVisibility.bind(this);
         this.clearRelationshipKey = this.clearRelationshipKey.bind(this);
@@ -227,6 +229,7 @@ class App {
         this.pageBackgroundSharpLayer = this.pageBackground?.querySelector(".page-background-layer-sharp") ?? null;
         this.pageBackgroundBlurLayer = this.pageBackground?.querySelector(".page-background-layer-blur") ?? null;
         this.urlInput = document.getElementById("url-input");
+        this.urlInputContainer = document.getElementById("url-input-container");
         this.submitButton = document.getElementById("url-submit-button");
         this.submitButtonContainer = document.getElementById("url-submit-button-container");
         this.submitStatusMessage = document.getElementById("submit-status-message");
@@ -818,6 +821,7 @@ class App {
             });
         });
         document.addEventListener("pointerdown", this.onDocumentPointerDown);
+        requestAnimationFrame(this.updateSupportButtonsScale);
     }
 
     onSupportCtaClicked(event) {
@@ -874,15 +878,52 @@ class App {
         return window.matchMedia("(max-width: 768px)").matches;
     }
 
+    updateSupportButtonsScale() {
+        if (this.supportButtons == null) {
+            return;
+        }
+
+        this.supportButtons.style.setProperty("--support-buttons-scale", "1");
+
+        const availableWidth = this.supportButtons.clientWidth;
+        const contentWidth = this.supportButtons.scrollWidth;
+
+        if (availableWidth <= 0 || contentWidth <= 0) {
+            return;
+        }
+
+        const scale = Math.min(1, availableWidth / contentWidth);
+        this.supportButtons.style.setProperty("--support-buttons-scale", `${scale}`);
+    }
+
+    updateMobileViewportAnchors() {
+        const rootStyle = document.documentElement.style;
+
+        if (!this.isMobileViewport() || this.urlInputContainer == null) {
+            rootStyle.removeProperty("--mobile-url-input-bottom");
+            return;
+        }
+
+        const { bottom } = this.urlInputContainer.getBoundingClientRect();
+        rootStyle.setProperty("--mobile-url-input-bottom", `${Math.round(bottom)}px`);
+    }
+
     updateViewportMetrics() {
         const viewport = window.visualViewport;
         const top = viewport?.offsetTop ?? 0;
+        const left = viewport?.offsetLeft ?? 0;
+        const viewportWidth = viewport?.width ?? window.innerWidth;
         const viewportHeight = viewport?.height ?? window.innerHeight;
         const viewportBottom = top + viewportHeight;
         const bottomOffset = Math.max(0, window.innerHeight - viewportBottom);
 
         document.documentElement.style.setProperty("--vv-top", `${Math.round(top)}px`);
+        document.documentElement.style.setProperty("--vv-left", `${Math.round(left)}px`);
+        document.documentElement.style.setProperty("--vv-width", `${Math.round(viewportWidth)}px`);
+        document.documentElement.style.setProperty("--vv-height", `${Math.round(viewportHeight)}px`);
         document.documentElement.style.setProperty("--vv-offset-bottom", `${Math.round(bottomOffset)}px`);
+        this.updateSupportButtonsScale();
+        requestAnimationFrame(this.updateMobileViewportAnchors);
 
         if (!this.isMobileViewport()) {
             this.hideSupportMenu();
@@ -916,8 +957,10 @@ class App {
         this.pageBackgroundSharpLayer.style.backgroundPosition = backgroundPosition;
         this.pageBackgroundBlurLayer.style.backgroundImage = `url("${randomImage}")`;
         this.pageBackgroundBlurLayer.style.backgroundPosition = backgroundPosition;
-        this.pageBackgroundPlane.style.transform =
-            `perspective(${BACKGROUND_PERSPECTIVE_PX}px) rotateY(${rotateY.toFixed(2)}deg) scale(${backgroundScale.toFixed(3)})`;
+        this.pageBackgroundPlane.style.setProperty(
+            "--page-background-plane-transform",
+            `perspective(${BACKGROUND_PERSPECTIVE_PX}px) rotateY(${rotateY.toFixed(2)}deg) scale(${backgroundScale.toFixed(3)})`
+        );
         this.pageBackground.style.setProperty("--page-background-vignette-opacity", vignette.toFixed(3));
         this.pageBackground.style.setProperty("--page-background-focus-easing", BACKGROUND_FOCUS_EASING);
         this.pageBackground.style.setProperty("--page-background-focus-split", `${focusSplit.toFixed(2)}%`);

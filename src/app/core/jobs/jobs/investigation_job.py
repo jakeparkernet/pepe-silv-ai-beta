@@ -859,22 +859,39 @@ class InvestigationJob(Job):
             self.recursively_find_owners(entity=e)
         else:
             async def on_ranked (result):
-                ranked_entities = result.output["entities"]
-                ranking = result.output["ranking"]
+                child_output, ranked_entities, ranking, error_message = self._extract_rank_companies_output(
+                    result,
+                    stage=f"batch company ranking ({side})",
+                )
+                if error_message:
+                    await self._fail_investigation_gracefully(
+                        error_message,
+                        stage="batch_company_ranking",
+                        failure_context=child_output,
+                    )
+                    return
 
-                for rank in ranking:
-                    company_id = rank.get("company_id") or (rank.get("company") or {}).get("id")
-                    eid = company_id
-                    e = ranked_entities[eid]
+                try:
+                    for rank in ranking:
+                        company_id = rank.get("company_id") or (rank.get("company") or {}).get("id")
+                        eid = company_id
+                        e = ranked_entities[eid]
 
-                    deserialized_entity = Entity()
-                    deserialized_entity.deserialize(e)
+                        deserialized_entity = Entity()
+                        deserialized_entity.deserialize(e)
 
-                    self._entity_side[str(eid)] = side
-                    self._entity_batch[str(eid)] = token
+                        self._entity_side[str(eid)] = side
+                        self._entity_batch[str(eid)] = token
 
-                    # Kick off the owner search for this entity (identify-if-needed then find owners).
-                    self.recursively_find_owners(entity=deserialized_entity)
+                        # Kick off the owner search for this entity (identify-if-needed then find owners).
+                        self.recursively_find_owners(entity=deserialized_entity)
+                except Exception as e:
+                    await self._fail_investigation_gracefully(
+                        f"Unexpected error processing ranked batch companies: {e}",
+                        stage="batch_company_ranking",
+                        failure_context=child_output,
+                    )
+                    return
 
             @returns_awaitable
             def on_ranked_wrapper (result):
@@ -1174,91 +1191,215 @@ class InvestigationJob(Job):
             f"Supabase operation failed after {attempts} attempts: {operation_name}"
         ) from last_error
 
-    async def on_final_companies_ranked (self, result):
-        
-        ranked_entities = result.output["entities"]
-        ranking = result.output["ranking"]
+    def _extract_child_job_output(self, result: Any) -> Any:
+        if hasattr(result, "output"):
+            return getattr(result, "output")
+
+        if isinstance(result, dict):
+            if "output" in result:
+                return result.get("output")
+            return result
+
+        return None
+
+    def _extract_rank_companies_output(
+        self,
+        result: Any,
+        *,
+        stage: str,
+    ) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]], Optional[List[Dict[str, Any]]], Optional[str]]:
+        child_output = self._extract_child_job_output(result)
+
+        if not isinstance(child_output, dict):
+            return None, None, None, (
+                f"Rank companies job returned non-dict output during {stage}: "
+                f"{type(child_output).__name__}"
+            )
+
+        if child_output.get("status") == "error":
+            return child_output, None, None, (
+                f"Rank companies job failed during {stage}: "
+                f"{child_output.get('error', 'unknown error')}"
+            )
+
+        ranked_entities = child_output.get("entities")
+        ranking = child_output.get("ranking")
+
+        if not isinstance(ranked_entities, dict):
+            return child_output, None, None, (
+                f"Rank companies job returned invalid entities payload during {stage}"
+            )
+
+        if not isinstance(ranking, list):
+            return child_output, None, None, (
+                f"Rank companies job returned invalid ranking payload during {stage}"
+            )
 
         if not ranking:
-            error_message = "Invalid ranking result, ranking is empty"
-            logger.error(error_message)
-            self.fail(error_message)
-            self._shutdown_or_stop()
-            return
+            return child_output, ranked_entities, ranking, (
+                f"Rank companies job returned an empty ranking during {stage}"
+            )
 
-        top_entity_ranking = ranking[0]
-        company_id = top_entity_ranking.get("company_id") or (top_entity_ranking.get("company") or {}).get("id")
-        
-        if not company_id:
-            error_message = f"Invalid ranking result, missing company_id: {top_entity_ranking}"
-            logger.error(error_message)
-            self._final_output_obj["final_ranking"] = result.output
-            self._final_output_obj["top_owner"] = None
-            self.fail(error_message)
-            self._shutdown_or_stop()
-            return
+        return child_output, ranked_entities, ranking, None
 
-        top_entity = ranked_entities.get(company_id) if isinstance(ranked_entities, dict) else None
-        if top_entity is None:
-            error_message = f"Invalid ranking result, missing top entity in entities map for company_id={company_id}"
-            logger.error(error_message)
-            self.fail(error_message)
-            self._shutdown_or_stop()
-            return
+    async def _fail_investigation_gracefully(
+        self,
+        error_message: str,
+        *,
+        stage: str,
+        failure_context: Any = None,
+    ):
+        logger.error(
+            "Investigation failed gracefully: url=%s stage=%s error=%s",
+            self._queue_url_key,
+            stage,
+            error_message,
+        )
 
-        self._final_output_obj["final_ranking"] = result.output
-        self._final_output_obj["top_owner"] = top_entity
-
-        def serialize_base_dict (base_dict):
-            transportable_dict = {}
-
-            for key, value in base_dict.items():
-                transportable_dict[key] = value.to_serializeable_object()
-            
-            return transportable_dict
-
-        def serialize_ownership_tree (ownership_tree):
-            transportable_ownership_tree = {
-                "target_entity": ownership_tree["target_entity"].to_serializeable_object(),
-                "owner_entities": serialize_base_dict(ownership_tree["owner_entities"]),
-                "relationships": serialize_base_dict(ownership_tree["relationships"])
-            }
-
-            return transportable_ownership_tree
-
-        article_subject = self._final_output_obj["article_subject"]
-        news_site = self._final_output_obj["news_site"]
-
-        investigation_data_transportable = {
-            "article_subject": article_subject if isinstance(article_subject, dict) else article_subject.to_serializeable_object(),
-            "news_site": news_site if isinstance(news_site, dict) else news_site.to_serializeable_object(),
-            "common_owner_results": {
-                "a_ownership_tree": serialize_ownership_tree(self._final_output_obj["common_owner_results"]["a_ownership_tree"]),
-                "b_ownership_tree": serialize_ownership_tree(self._final_output_obj["common_owner_results"]["b_ownership_tree"]),
-                "relationships": serialize_base_dict(self._final_output_obj["common_owner_results"]["relationships"]),
-                "owner_entities": serialize_base_dict(self._final_output_obj["common_owner_results"]["owner_entities"]),
-                "common_owners": serialize_base_dict(self._final_output_obj["common_owner_results"]["common_owners"])
-            },
-            "final_ranking": self._final_output_obj["final_ranking"],
-            "top_owner": self._final_output_obj["top_owner"]
+        failure_output = {
+            "article_url": self._queue_url_key,
+            "status": "failed",
+            "failed_stage": stage,
+            "error": error_message,
         }
+        if failure_context is not None:
+            failure_output["failure_context"] = failure_context
 
-        evidence_ids = self._collect_all_evidence_ids(self._final_output_obj)
-        self._final_output_obj["evidence"] = self._serialize_evidence(evidence_ids)
+        self._final_output_obj = {
+            **self._final_output_obj,
+            **failure_output,
+        }
+        self.set_output(self._final_output_obj)
 
-        company_a = article_subject["id"] if isinstance(article_subject, dict) else article_subject.id
-        company_b = news_site["id"] if isinstance(news_site, dict) else news_site.id
-        top_owner = self._final_output_obj.get("top_owner")
-        article_subject_name = article_subject["name"] if isinstance(article_subject, dict) else getattr(article_subject, "name", None) or "?"
-        news_site_name = news_site["name"] if isinstance(news_site, dict) else getattr(news_site, "name", None) or "?"
-
-        if top_owner:
-            top_owner_name = top_owner.get("name", "Unknown") if isinstance(top_owner, dict) else getattr(top_owner, "name", "Unknown")
-            summary = f"{top_owner_name} owns both {article_subject_name} and {news_site_name}"
-        else:
-            summary = f"No common owner found between {article_subject_name} and {news_site_name}"
+        end_time = time_module.time()
+        investigation_runtime_seconds = end_time - self._start_time
+        fly_io_investigation_cost = investigation_runtime_seconds * self._fly_io_cost_per_second
+        total_cost = OpenrouterCost.get_instance().get_cost()
 
         try:
+            await self._run_supabase_operation_with_retry(
+                "mark article_queue as failed",
+                lambda: (
+                    _get_supabase_service_client()
+                    .table("article_queue")
+                    .update({
+                        "status": "failed",
+                        "openrouter_cost": total_cost,
+                        "investigation_run_time": investigation_runtime_seconds,
+                        "fly_io_investigation_cost": fly_io_investigation_cost,
+                        "ended_at": datetime.now().isoformat(),
+                    })
+                    .eq("url", self._queue_url_key)
+                    .neq("status", "complete")
+                    .execute()
+                ),
+                attempts=2,
+                timeout_seconds=10.0,
+                initial_backoff_seconds=0.25,
+            )
+        except Exception:
+            logger.exception(
+                "Failed to mark article_queue failed for url=%s",
+                self._queue_url_key,
+            )
+
+        self.fail(error_message)
+        self._shutdown_or_stop()
+
+    async def on_final_companies_ranked (self, result):
+        child_output, ranked_entities, ranking, error_message = self._extract_rank_companies_output(
+            result,
+            stage="final company ranking",
+        )
+        if error_message:
+            self._final_output_obj["final_ranking"] = child_output
+            self._final_output_obj["top_owner"] = None
+            await self._fail_investigation_gracefully(
+                error_message,
+                stage="final_company_ranking",
+                failure_context=child_output,
+            )
+            return
+
+        try:
+            top_entity_ranking = ranking[0]
+            company_id = top_entity_ranking.get("company_id") or (top_entity_ranking.get("company") or {}).get("id")
+            
+            if not company_id:
+                error_message = f"Invalid ranking result, missing company_id: {top_entity_ranking}"
+                self._final_output_obj["final_ranking"] = child_output
+                self._final_output_obj["top_owner"] = None
+                await self._fail_investigation_gracefully(
+                    error_message,
+                    stage="final_company_ranking",
+                    failure_context=child_output,
+                )
+                return
+
+            top_entity = ranked_entities.get(company_id) if isinstance(ranked_entities, dict) else None
+            if top_entity is None:
+                error_message = f"Invalid ranking result, missing top entity in entities map for company_id={company_id}"
+                self._final_output_obj["final_ranking"] = child_output
+                self._final_output_obj["top_owner"] = None
+                await self._fail_investigation_gracefully(
+                    error_message,
+                    stage="final_company_ranking",
+                    failure_context=child_output,
+                )
+                return
+
+            self._final_output_obj["final_ranking"] = child_output
+            self._final_output_obj["top_owner"] = top_entity
+
+            def serialize_base_dict (base_dict):
+                transportable_dict = {}
+
+                for key, value in base_dict.items():
+                    transportable_dict[key] = value.to_serializeable_object()
+                
+                return transportable_dict
+
+            def serialize_ownership_tree (ownership_tree):
+                transportable_ownership_tree = {
+                    "target_entity": ownership_tree["target_entity"].to_serializeable_object(),
+                    "owner_entities": serialize_base_dict(ownership_tree["owner_entities"]),
+                    "relationships": serialize_base_dict(ownership_tree["relationships"])
+                }
+
+                return transportable_ownership_tree
+
+            article_subject = self._final_output_obj["article_subject"]
+            news_site = self._final_output_obj["news_site"]
+
+            investigation_data_transportable = {
+                "article_subject": article_subject if isinstance(article_subject, dict) else article_subject.to_serializeable_object(),
+                "news_site": news_site if isinstance(news_site, dict) else news_site.to_serializeable_object(),
+                "common_owner_results": {
+                    "a_ownership_tree": serialize_ownership_tree(self._final_output_obj["common_owner_results"]["a_ownership_tree"]),
+                    "b_ownership_tree": serialize_ownership_tree(self._final_output_obj["common_owner_results"]["b_ownership_tree"]),
+                    "relationships": serialize_base_dict(self._final_output_obj["common_owner_results"]["relationships"]),
+                    "owner_entities": serialize_base_dict(self._final_output_obj["common_owner_results"]["owner_entities"]),
+                    "common_owners": serialize_base_dict(self._final_output_obj["common_owner_results"]["common_owners"])
+                },
+                "final_ranking": self._final_output_obj["final_ranking"],
+                "top_owner": self._final_output_obj["top_owner"]
+            }
+
+            evidence_ids = self._collect_all_evidence_ids(self._final_output_obj)
+            self._final_output_obj["evidence"] = self._serialize_evidence(evidence_ids)
+
+            company_a = article_subject["id"] if isinstance(article_subject, dict) else article_subject.id
+            company_b = news_site["id"] if isinstance(news_site, dict) else news_site.id
+            top_owner = self._final_output_obj.get("top_owner")
+            article_subject_name = article_subject["name"] if isinstance(article_subject, dict) else getattr(article_subject, "name", None) or "?"
+            news_site_name = news_site["name"] if isinstance(news_site, dict) else getattr(news_site, "name", None) or "?"
+
+            if top_owner:
+                top_owner_name = top_owner.get("name", "Unknown") if isinstance(top_owner, dict) else getattr(top_owner, "name", "Unknown")
+                summary = f"{top_owner_name} owns both {article_subject_name} and {news_site_name}"
+            else:
+                summary = f"No common owner found between {article_subject_name} and {news_site_name}"
+
             def persist_final_results_sync():
                 supabase = _get_supabase_service_client()
 
@@ -1360,6 +1501,13 @@ class InvestigationJob(Job):
 
             self.fail(f"terminal supabase write failed: {e}")
             self._shutdown_or_stop()
+            return
+        except Exception as e:
+            await self._fail_investigation_gracefully(
+                f"Unexpected error finalizing ranked investigation results: {e}",
+                stage="final_company_ranking",
+                failure_context=child_output,
+            )
             return
 
         total_cost = OpenrouterCost.get_instance().get_cost()
