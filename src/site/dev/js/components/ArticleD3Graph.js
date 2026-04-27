@@ -414,65 +414,21 @@ class ArticleD3Graph {
 
   updateLegend(graph) {
     this.legendLayer.selectAll("*").remove();
+  }
 
-    if (graph?.useArcLinks !== true || Array.isArray(graph.relationTypes) === false || graph.relationTypes.length === 0) {
-      return;
+  getLegendItems() {
+    if (
+      this.graphData?.useArcLinks !== true ||
+      Array.isArray(this.graphData?.relationTypes) === false ||
+      this.graphData.relationTypes.length === 0
+    ) {
+      return [];
     }
 
-    const legend = this.legendLayer.append("g").attr("transform", "translate(24, 64)");
-    const rowHeight = 24;
-    const titleHeight = 18;
-    const paddingX = 14;
-    const paddingY = 12;
-    const swatchSize = 12;
-    const legendWidth = 220;
-    const legendHeight = (graph.relationTypes.length * rowHeight) + titleHeight + (paddingY * 2) + 8;
-
-    legend
-      .append("rect")
-      .attr("width", legendWidth)
-      .attr("height", legendHeight)
-      .attr("rx", 10)
-      .attr("ry", 10)
-      .attr("fill", "rgba(255, 252, 244, 0.92)")
-      .attr("stroke", "rgba(36, 24, 13, 0.18)")
-      .attr("stroke-width", 1.2);
-
-    legend
-      .append("text")
-      .attr("x", paddingX)
-      .attr("y", paddingY + 12)
-      .attr("fill", "#24180d")
-      .attr("font-size", 12)
-      .attr("font-weight", 800)
-      .attr("letter-spacing", "0.05em")
-      .text("RELATIONSHIP KEY");
-
-    const rows = legend
-      .selectAll("g.article-graph-legend-row")
-      .data(graph.relationTypes, (d) => d)
-      .join("g")
-      .attr("class", "article-graph-legend-row")
-      .attr("transform", (_, index) => `translate(${paddingX}, ${paddingY + titleHeight + 8 + (index * rowHeight)})`);
-
-    rows
-      .append("rect")
-      .attr("width", swatchSize)
-      .attr("height", swatchSize)
-      .attr("rx", 3)
-      .attr("ry", 3)
-      .attr("fill", (d) => graph.colorByRelationType[d] ?? "#7a6a4d");
-
-    rows
-      .append("text")
-      .attr("x", swatchSize + 10)
-      .attr("y", swatchSize - 1)
-      .attr("fill", "#24180d")
-      .attr("font-size", 12)
-      .attr("font-weight", 700)
-      .text((d) => d);
-
-    this.updateTopOwnersPanel(graph, legendWidth, legendHeight);
+    return this.graphData.relationTypes.map((relationType) => ({
+      label: relationType,
+      color: this.graphData?.colorByRelationType?.[relationType] ?? "#7a6a4d"
+    }));
   }
 
   updateTopOwnersPanel(graph, anchorWidth, anchorHeight) {

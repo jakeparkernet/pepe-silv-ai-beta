@@ -150,6 +150,10 @@ class App {
         this.updateAddressBarUrlParam = this.updateAddressBarUrlParam.bind(this);
         this.initializeNewSearch = this.initializeNewSearch.bind(this);
         this.initializeShareButton = this.initializeShareButton.bind(this);
+        this.initializeSupportCta = this.initializeSupportCta.bind(this);
+        this.renderRelationshipKey = this.renderRelationshipKey.bind(this);
+        this.updateRelationshipKeyVisibility = this.updateRelationshipKeyVisibility.bind(this);
+        this.clearRelationshipKey = this.clearRelationshipKey.bind(this);
         this.updateArticleActionToolbarPosition = this.updateArticleActionToolbarPosition.bind(this);
         this.showNewSearchContainer = this.showNewSearchContainer.bind(this);
         this.hideNewSearchContainer = this.hideNewSearchContainer.bind(this);
@@ -175,6 +179,12 @@ class App {
         this.updateArticleStatusCameraFollow = this.updateArticleStatusCameraFollow.bind(this);
         this.setArticleStatusSpotlightEnabled = this.setArticleStatusSpotlightEnabled.bind(this);
         this.updateArticleHoverOverlay = this.updateArticleHoverOverlay.bind(this);
+        this.onSupportCtaClicked = this.onSupportCtaClicked.bind(this);
+        this.onDocumentPointerDown = this.onDocumentPointerDown.bind(this);
+        this.showSupportMenu = this.showSupportMenu.bind(this);
+        this.hideSupportMenu = this.hideSupportMenu.bind(this);
+        this.isMobileViewport = this.isMobileViewport.bind(this);
+        this.updateViewportMetrics = this.updateViewportMetrics.bind(this);
         this.wait = this.wait.bind(this);
 
         this.baseUrl = "https://callback.pepesilv.ai";
@@ -209,6 +219,9 @@ class App {
         this.shareButton = document.getElementById("share-button");
         this.shareContainer = document.getElementById("share-container");
         this.shareFeedback = document.getElementById("share-feedback");
+        this.relationshipKey = document.getElementById("relationship-key");
+        this.supportButtons = document.getElementById("support-buttons");
+        this.supportCtaButton = document.getElementById("support-cta-button");
         this.detailPanel = document.getElementById("detail-panel");
         this.detailPanelTitle = document.getElementById("detail-panel-title");
         this.detailPanelBody = document.getElementById("detail-panel-body");
@@ -223,6 +236,7 @@ class App {
         this.articleStatusPollToken = 0;
         this.hasSubmittedValidArticleUrl = false;
         this.shareFeedbackTimer = null;
+        this.supportMenuOpen = false;
         this.articleStatusView = null;
         this.articleStatusD3 = null;
         this.lastAmbientDependentLabelsVisible = null;
@@ -230,6 +244,7 @@ class App {
         this.initializeDetailPanel();
         this.initializeNewSearch();
         this.initializeShareButton();
+        this.initializeSupportCta();
         this.initializePageBackground();
         this.applyInitialVisualizationMode();
 
@@ -359,6 +374,7 @@ class App {
             this.articleHoverOverlay.layers.enable(MAIN_RENDER_LAYER);
             this.scene.add(this.articleHoverOverlay);
 
+            this.updateViewportMetrics();
             window.addEventListener("resize", this.onWindowResize);
             window.visualViewport?.addEventListener("resize", this.onWindowResize);
             window.visualViewport?.addEventListener("scroll", this.onWindowResize);
@@ -491,7 +507,7 @@ class App {
             spotlightFolder.add(this.spotLightParams, "followSpeed", 0, 10);
 
             const cameraFolder = this.gui.addFolder("camera");
-            
+
             let zoomModes = [
                 "positional",
                 "fov"
@@ -529,18 +545,22 @@ class App {
             this.gui.domElement.style.display = "none";
             this.gui.domElement.style.zIndex = "2000";
 
-            document.addEventListener("keydown", (event) => {
-                if (event.key === "f" || event.key === "F") {
-                    this.debugControlsVisible = !this.debugControlsVisible;
-                    this.gui.domElement.style.display = this.debugControlsVisible ? "" : "none";
-                }
-                if (event.key === "s" || event.key === "S") {
-                    if (document.activeElement !== this.urlInput) {
-                        this.statsVisible = !this.statsVisible;
-                        this.stats.dom.style.display = this.statsVisible ? "block" : "none";
+            let showControls = params.get("controls");
+
+            if (showControls == "true") {
+                document.addEventListener("keydown", (event) => {
+                    if (event.key === "f" || event.key === "F") {
+                        this.debugControlsVisible = !this.debugControlsVisible;
+                        this.gui.domElement.style.display = this.debugControlsVisible ? "" : "none";
                     }
-                }
-            });
+                    if (event.key === "s" || event.key === "S") {
+                        if (document.activeElement !== this.urlInput) {
+                            this.statsVisible = !this.statsVisible;
+                            this.stats.dom.style.display = this.statsVisible ? "block" : "none";
+                        }
+                    }
+                });
+            }
 
             InstancedMeshPool.setDefaultParent(this.scene);
             TextService.init({
@@ -726,6 +746,11 @@ class App {
             return;
         }
 
+        if (this.isMobileViewport()) {
+            this.articleActionToolbar.style.removeProperty("top");
+            return;
+        }
+
         const computedStyles = window.getComputedStyle(this.articleActionToolbar);
         const fallbackTop = Number.parseFloat(computedStyles.getPropertyValue("--toolbar-fallback-top")) || 180;
         const legendGap = Number.parseFloat(computedStyles.getPropertyValue("--toolbar-legend-gap")) || 44;
@@ -753,6 +778,86 @@ class App {
         this.hideShareContainer();
         this.hideShareFeedback();
         this.shareButton?.addEventListener("click", this.onShareButtonClicked);
+    }
+
+    initializeSupportCta() {
+        this.hideSupportMenu();
+        this.supportCtaButton?.addEventListener("click", this.onSupportCtaClicked);
+        this.supportButtons?.querySelectorAll("a").forEach((link) => {
+            link.addEventListener("click", () => {
+                this.hideSupportMenu();
+            });
+        });
+        document.addEventListener("pointerdown", this.onDocumentPointerDown);
+    }
+
+    onSupportCtaClicked(event) {
+        event?.preventDefault?.();
+        event?.stopPropagation?.();
+
+        if (this.supportMenuOpen) {
+            this.hideSupportMenu();
+            return;
+        }
+
+        this.showSupportMenu();
+    }
+
+    onDocumentPointerDown(event) {
+        if (!this.supportMenuOpen) {
+            return;
+        }
+
+        const target = event?.target;
+        if (
+            this.supportButtons?.contains(target) ||
+            this.supportCtaButton?.contains(target)
+        ) {
+            return;
+        }
+
+        this.hideSupportMenu();
+    }
+
+    showSupportMenu() {
+        if (this.supportButtons == null || this.supportCtaButton == null) {
+            return;
+        }
+
+        this.supportMenuOpen = true;
+        this.supportButtons.classList.add("is-open");
+        this.supportCtaButton.setAttribute("aria-expanded", "true");
+    }
+
+    hideSupportMenu() {
+        if (this.supportButtons != null) {
+            this.supportButtons.classList.remove("is-open");
+        }
+
+        if (this.supportCtaButton != null) {
+            this.supportCtaButton.setAttribute("aria-expanded", "false");
+        }
+
+        this.supportMenuOpen = false;
+    }
+
+    isMobileViewport() {
+        return window.matchMedia("(max-width: 768px)").matches;
+    }
+
+    updateViewportMetrics() {
+        const viewport = window.visualViewport;
+        const top = viewport?.offsetTop ?? 0;
+        const viewportHeight = viewport?.height ?? window.innerHeight;
+        const viewportBottom = top + viewportHeight;
+        const bottomOffset = Math.max(0, window.innerHeight - viewportBottom);
+
+        document.documentElement.style.setProperty("--vv-top", `${Math.round(top)}px`);
+        document.documentElement.style.setProperty("--vv-offset-bottom", `${Math.round(bottomOffset)}px`);
+
+        if (!this.isMobileViewport()) {
+            this.hideSupportMenu();
+        }
     }
 
     initializePageBackground() {
@@ -791,6 +896,70 @@ class App {
         }
 
         this.pageTitle.classList.add("is-submitted");
+    }
+
+    clearRelationshipKey() {
+        if (this.relationshipKey == null) {
+            return;
+        }
+
+        this.relationshipKey.innerHTML = "";
+        this.relationshipKey.classList.remove("is-visible");
+        this.relationshipKey.setAttribute("aria-hidden", "true");
+    }
+
+    renderRelationshipKey(items = []) {
+        if (this.relationshipKey == null) {
+            return;
+        }
+
+        if (Array.isArray(items) === false || items.length === 0) {
+            this.clearRelationshipKey();
+            return;
+        }
+
+        const card = document.createElement("div");
+        card.className = "relationship-key-card";
+
+        const title = document.createElement("div");
+        title.className = "relationship-key-title";
+        title.textContent = "RELATIONSHIP KEY";
+        card.appendChild(title);
+
+        const list = document.createElement("div");
+        list.className = "relationship-key-list";
+
+        items.forEach((item) => {
+            const row = document.createElement("div");
+            row.className = "relationship-key-row";
+
+            const swatch = document.createElement("span");
+            swatch.className = "relationship-key-swatch";
+            swatch.style.backgroundColor = item.color ?? "#7a6a4d";
+
+            const label = document.createElement("span");
+            label.className = "relationship-key-label";
+            label.textContent = item.label ?? "";
+
+            row.appendChild(swatch);
+            row.appendChild(label);
+            list.appendChild(row);
+        });
+
+        card.appendChild(list);
+        this.relationshipKey.replaceChildren(card);
+        this.updateRelationshipKeyVisibility(items.length > 0);
+    }
+
+    updateRelationshipKeyVisibility(forceVisible = null) {
+        if (this.relationshipKey == null) {
+            return;
+        }
+
+        const hasItems = this.relationshipKey.childElementCount > 0;
+        const shouldShow = forceVisible ?? (this.visualizationMode === "d3" && hasItems);
+        this.relationshipKey.classList.toggle("is-visible", shouldShow);
+        this.relationshipKey.setAttribute("aria-hidden", shouldShow ? "false" : "true");
     }
 
     showShareContainer() {
@@ -1167,7 +1336,7 @@ class App {
         }
     }
 
-    async collectEvidence () {
+    async collectEvidence() {
         const supabase = createClient(
             "https://ukxcjdimupajklqdxbvr.supabase.co",
             "sb_publishable_8DfgTxdV87vYWW-fBkxTng_Whoii-zo"
@@ -1240,7 +1409,7 @@ class App {
         }
     }
 
-    getEvidence (ids) {
+    getEvidence(ids) {
         let evidence = {};
 
         for (let i = 0; i < ids.length; i++) {
@@ -1742,6 +1911,8 @@ class App {
     }
 
     clearCurrentArticleView() {
+        this.clearRelationshipKey();
+
         if (this.articleView == null) {
             return;
         }
@@ -1852,6 +2023,7 @@ class App {
         articleView.setModel(articleModel);
         this.articleView = articleView;
         this.d3Graph.renderArticle(articleModel);
+        this.renderRelationshipKey(this.d3Graph.getLegendItems?.() ?? []);
         this.updateArticleActionToolbarPosition();
 
         const d3Positions = this.d3Graph.getNoCommonOwnerPositions?.();
@@ -1990,6 +2162,7 @@ class App {
         if (this.supportedSites == null) {
             return;
         }
+        this.supportedSites.classList.add("is-hidden");
         this.supportedSites.style.opacity = "0";
     }
 
@@ -1997,6 +2170,7 @@ class App {
         if (this.supportedSites == null) {
             return;
         }
+        this.supportedSites.classList.remove("is-hidden");
         this.supportedSites.style.opacity = "1";
     }
 
@@ -2392,7 +2566,7 @@ class App {
         this.threeCanvas.style.filter = "brightness(1)";
         const ambientToLowProgress = THREE.MathUtils.clamp(
             (this.articleLightingIntro.elapsedMs - this.articleLightingIntro.blackoutDurationMs) /
-                this.articleLightingIntro.ambientToLowDurationMs,
+            this.articleLightingIntro.ambientToLowDurationMs,
             0,
             1
         );
@@ -2429,7 +2603,7 @@ class App {
 
             const flareProgress = THREE.MathUtils.clamp(
                 this.articleLightingIntro.spotlightFlareElapsedMs /
-                    this.articleLightingIntro.spotlightFlareDurationMs,
+                this.articleLightingIntro.spotlightFlareDurationMs,
                 0,
                 1
             );
@@ -2467,7 +2641,7 @@ class App {
 
             const ambientToFullProgress = THREE.MathUtils.clamp(
                 this.articleLightingIntro.ambientToFullElapsedMs /
-                    this.articleLightingIntro.ambientToFullDurationMs,
+                this.articleLightingIntro.ambientToFullDurationMs,
                 0,
                 1
             );
@@ -2572,7 +2746,7 @@ class App {
         this.prevFrameTime = this.now;
     }
 
-    getRenderDimensions () {
+    getRenderDimensions() {
         const canvasRect = this.threeCanvas?.getBoundingClientRect?.();
 
         if (canvasRect != null && canvasRect.width > 0 && canvasRect.height > 0) {
@@ -2589,13 +2763,15 @@ class App {
     }
 
     onWindowResize() {
+        this.updateViewportMetrics();
         const { width, height } = this.getRenderDimensions();
-        
+
         this.renderer.setSize(width, height, false);
         this.composer?.setSize(width, height, false);
         this.camera.aspect = width / height;
         this.camera.updateProjectionMatrix();
         this.articleStatusD3?.resize();
+        this.updateArticleActionToolbarPosition();
 
         if (this.visualizationMode === "d3") {
             this.d3Graph?.resize();
@@ -3132,7 +3308,10 @@ class App {
         this.shareFeedback?.classList.toggle("light-mode", showD3);
         this.submitButton?.classList.toggle("light-mode", showD3);
         this.submitButtonContainer?.classList.toggle("light-mode", showD3);
+        this.supportCtaButton?.classList.toggle("light-mode", showD3);
+        this.supportButtons?.classList.toggle("light-mode", showD3);
         this.pageTitle?.classList.toggle("light-mode", showD3);
+        this.updateRelationshipKeyVisibility();
 
         if (showD3) {
             this.d3Graph.resize();

@@ -26,6 +26,33 @@
     <div id="d3-canvas-container" aria-hidden="true">
         <svg id="d3-canvas"></svg>
     </div>
+    <div id="mobile-top-shell">
+        <div id="summary-banner"></div>
+        <div id="mobile-top-controls">
+            <div id="mobile-primary-actions">
+                <div id="view-toggle-container" role="group" aria-label="Visualization mode">
+                    <div id="toggle-three-view" class="view-toggle-button view-toggle-button-dark is-active" type="button"
+                        aria-label="Dark view" title="Dark view"><img width="16px" src="resources/pepe_emoji.png" alt="Dark view" />
+                    </div>
+                    <div id="toggle-d3-view" class="view-toggle-button view-toggle-button-light" type="button"
+                        aria-label="Light view" title="Light view"><img width="16px" src="resources/ggg_emoji.png"
+                            alt="Light view" /></div>
+                </div>
+                <div id="article-action-toolbar">
+                    <div id="new-search-container" role="group" aria-label="New search">
+                        <div id="new-search-button" class="new-search-button"></div>
+                    </div>
+                    <div id="share-container" role="group" aria-label="Share article">
+                        <div id="share-feedback" aria-live="polite">copied</div>
+                        <button id="share-button" class="share-button" type="button" aria-label="Share article" title="Share article"></button>
+                    </div>
+                </div>
+            </div>
+            <div id="relationship-key" aria-label="Relationship key" aria-hidden="true"></div>
+            <button id="support-cta-button" type="button" aria-expanded="false" aria-controls="support-buttons">Support independent research</button>
+        </div>
+        <div id="article-url-display" aria-live="polite"></div>
+    </div>
     <div id="support-buttons" aria-label="Support Pepe Silv.AI">
         <a href="https://github.com/jakeparkernet/pepe-silv-ai-beta" class="support-btn" target="_blank" rel="noopener noreferrer">
             <span class="text">Source code</span>
@@ -40,25 +67,6 @@
             <img src="resources/PATREON_SYMBOL_1_BLACK_RGB.svg" alt="Patreon" />
         </a>
     </div>
-    <div id="view-toggle-container" role="group" aria-label="Visualization mode">
-        <div id="toggle-three-view" class="view-toggle-button view-toggle-button-dark is-active" type="button"
-            aria-label="Dark view" title="Dark view"><img width="16px" src="resources/pepe_emoji.png" alt="Dark view" />
-        </div>
-        <div id="toggle-d3-view" class="view-toggle-button view-toggle-button-light" type="button"
-            aria-label="Light view" title="Light view"><img width="16px" src="resources/ggg_emoji.png"
-                alt="Light view" /></div>
-    </div>
-    <div id="article-action-toolbar">
-        <div id="new-search-container" role="group" aria-label="New search">
-            <div id="new-search-button" class="new-search-button"></div>
-        </div>
-        <div id="share-container" role="group" aria-label="Share article">
-            <div id="share-feedback" aria-live="polite">copied</div>
-            <button id="share-button" class="share-button" type="button" aria-label="Share article" title="Share article"></button>
-        </div>
-    </div>
-    <div id="article-url-display" aria-live="polite"></div>
-    <div id="summary-banner"></div>
     <div id="page-title">PEPE SILV.AI</div>
     <aside id="detail-panel" aria-hidden="true">
         <div id="detail-panel-header">
@@ -68,16 +76,18 @@
         <div id="detail-panel-body"></div>
     </aside>
     <div id="foreground">
-        <div id="url-input-container">
-            <input id="url-input" placeholder="Paste or type the URL of a news article to scan for financial conflicts."
-                type="url"></input>
-            <div id="url-submit-button-container">
-                <div id="url-submit-button"></div>
+        <div id="mobile-bottom-shell">
+            <div id="url-input-container">
+                <input id="url-input" placeholder="Paste or type the URL of a news article to scan for financial conflicts."
+                    type="url"></input>
+                <div id="url-submit-button-container">
+                    <div id="url-submit-button"></div>
+                </div>
             </div>
             <div id="supported-sites">nbcnews.com &nbsp; nypost.com &nbsp; theverge.com &nbsp; washingtonpost.com &nbsp; nytimes.com &nbsp; foxnews.com &nbsp; abcnews.go.com</div>
+            <div id="submit-status-message" aria-live="polite"></div>
+            <div id="submit-status-timer" aria-hidden="true"></div>
         </div>
-        <div id="submit-status-message" aria-live="polite"></div>
-        <div id="submit-status-timer" aria-hidden="true"></div>
     </div>
     <script type="module" defer>
         import { App } from "./js/app.js"

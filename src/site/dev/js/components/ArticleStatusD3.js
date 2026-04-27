@@ -94,12 +94,19 @@ class ArticleStatusD3 {
 
         const computedStyles = this.container ? window.getComputedStyle(this.container) : null;
         const offsetY = Number.parseFloat(computedStyles?.getPropertyValue("--article-status-d3-offset-y") ?? "") || 200;
+        const isCompactViewport = this.width <= 768;
+        const labelFontSize = isCompactViewport ? 10 : 12;
+        const labelYOffset = isCompactViewport ? 28 : 32;
+        const labelLineHeight = isCompactViewport ? 12 : 14;
         const outerPadding = 72;
         const lineWidth = Math.min(this.width - (outerPadding * 2), Math.max(460, this.states.length * 120));
         const startX = (this.width - lineWidth) * 0.5;
         const y = Math.max(170 + offsetY, Math.min((this.height * 0.42) + offsetY, 260 + offsetY));
         const endX = startX + lineWidth;
         const dotSpacing = this.states.length > 1 ? lineWidth / (this.states.length - 1) : 0;
+        const labelMaxWidth = isCompactViewport
+            ? Math.max(48, Math.min(78, dotSpacing - 10 || 78))
+            : DEFAULT_LABEL_MAX_WIDTH;
 
         this.root
             .append("line")
@@ -148,23 +155,22 @@ class ArticleStatusD3 {
 
         groups
             .append("text")
-            .attr("y", 32)
+            .attr("y", labelYOffset)
             .attr("fill", "#24180d")
-            .attr("font-size", 12)
+            .attr("font-size", labelFontSize)
             .attr("font-weight", 700)
             .attr("text-anchor", "middle")
             .text((entry) => entry.messageD3)
             .each((_, index, nodes) => {
-                this.wrapText(window.d3.select(nodes[index]), DEFAULT_LABEL_MAX_WIDTH);
+                this.wrapText(window.d3.select(nodes[index]), labelMaxWidth, labelLineHeight);
             });
     }
 
-    wrapText(textSelection, maxWidth) {
+    wrapText(textSelection, maxWidth, lineHeight = 14) {
         const text = textSelection.text();
         const words = String(text).split(/\s+/).filter(Boolean);
         const x = Number(textSelection.attr("x") || 0);
         const y = Number(textSelection.attr("y") || 0);
-        const lineHeight = 14;
         let line = [];
         let lineIndex = 0;
 
