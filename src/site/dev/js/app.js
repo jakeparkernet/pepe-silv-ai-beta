@@ -315,7 +315,7 @@ class App {
             this.camera.layers.enable(SDF_TEXT_RENDER_LAYER);
 
             const canvas = this.threeCanvas;
-            this.renderer = new THREE.WebGLRenderer({ canvas, logarithmicDepthBuffer: true, antialias: true });
+            this.renderer = new THREE.WebGLRenderer({ canvas, logarithmicDepthBuffer: true, antialias: true, alpha: true });
             this.renderer.shadowMap.enabled = false;
             this.renderer.setSize(this.getRenderDimensions().width, this.getRenderDimensions().height, false);
             this.renderer.sortObjects = false;
