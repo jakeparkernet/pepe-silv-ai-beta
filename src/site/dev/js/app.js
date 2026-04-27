@@ -948,7 +948,7 @@ class App {
 
         card.appendChild(list);
         this.relationshipKey.replaceChildren(card);
-        this.updateRelationshipKeyVisibility(items.length > 0);
+        this.updateRelationshipKeyVisibility();
     }
 
     updateRelationshipKeyVisibility(forceVisible = null) {

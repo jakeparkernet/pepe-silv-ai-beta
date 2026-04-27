@@ -172,46 +172,48 @@ body {
 }
 
 #relationship-key .relationship-key-card {
-    width: 244px;
-    padding: 14px 16px 12px;
-    border-radius: 12px;
+    display: inline-block;
+    width: fit-content;
+    max-width: max-content;
+    padding: 10px 12px 9px;
+    border-radius: 10px;
     background: rgba(255, 252, 244, 0.92);
     border: 1px solid rgba(36, 24, 13, 0.18);
-    box-shadow: 0 10px 22px rgba(70, 52, 31, 0.12);
+    box-shadow: 0 8px 18px rgba(70, 52, 31, 0.12);
     box-sizing: border-box;
 }
 
 #relationship-key .relationship-key-title {
-    margin: 0 0 10px;
+    margin: 0 0 8px;
     color: #24180d;
     font-family: "Trebuchet MS", "Segoe UI", sans-serif;
-    font-size: 14px;
+    font-size: 11px;
     font-weight: 800;
     letter-spacing: 0.05em;
 }
 
 #relationship-key .relationship-key-list {
     display: grid;
-    gap: 8px;
+    gap: 6px;
 }
 
 #relationship-key .relationship-key-row {
     display: grid;
-    grid-template-columns: 14px 1fr;
+    grid-template-columns: 10px 1fr;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
 }
 
 #relationship-key .relationship-key-swatch {
-    width: 14px;
-    height: 14px;
-    border-radius: 3px;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
 }
 
 #relationship-key .relationship-key-label {
     color: #24180d;
     font-family: "Trebuchet MS", "Segoe UI", sans-serif;
-    font-size: 13px;
+    font-size: 11px;
     font-weight: 700;
 }
 
@@ -1139,7 +1141,7 @@ body {
     }
 
     #relationship-key .relationship-key-card {
-        width: min(200px, calc(100vw - 28px));
+        max-width: calc(100vw - 28px);
     }
 
     #support-buttons {
