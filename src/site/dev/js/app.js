@@ -40,11 +40,34 @@ const PEPE_BG_IMAGES = [
     "./resources/pepe-bg-2.png",
     "./resources/pepe-bg-3.png"
 ];
-const BACKGROUND_SKEW_MIN = -10;
-const BACKGROUND_SKEW_MAX = 10;
+const BACKGROUND_PERSPECTIVE_PX = 500;
+const BACKGROUND_ROTATE_Y_MIN = -18;
+const BACKGROUND_ROTATE_Y_MAX = 18;
+const BACKGROUND_SCALE_MIN = 0.69;
+const BACKGROUND_SCALE_MAX = 1.24;
+const BACKGROUND_POSITION_X_MIN = 42;
+const BACKGROUND_POSITION_X_MAX = 58;
+const BACKGROUND_POSITION_Y_MIN = 42;
+const BACKGROUND_POSITION_Y_MAX = 58;
 const BACKGROUND_VIGNETTE_MIN = 0.3;
 const BACKGROUND_VIGNETTE_MAX = 0.7;
-const ENABLE_PAGE_BACKGROUND = false;
+const BACKGROUND_FOCUS_INTERVAL_MIN_MS = 3000;
+const BACKGROUND_FOCUS_INTERVAL_MAX_MS = 5000;
+const BACKGROUND_FOCUS_TRANSITION_MIN_MS = 1600;
+const BACKGROUND_FOCUS_TRANSITION_MAX_MS = 2600;
+const BACKGROUND_FOCUS_EASING = "cubic-bezier(0.28, 0.02, 0.18, 1)";
+const BACKGROUND_RACK_FOCUS_DELAY_MS = 1000;
+const BACKGROUND_SHARP_LAYER_BLUR_MIN = 0.2;
+const BACKGROUND_SHARP_LAYER_BLUR_MAX = 1.2;
+const BACKGROUND_BLUR_LAYER_MIN = 3;
+const BACKGROUND_BLUR_LAYER_MAX = 11;
+const BACKGROUND_BLUR_OPACITY_MIN = 0.05;
+const BACKGROUND_BLUR_OPACITY_MAX = 0.3;
+const BACKGROUND_FOCUS_SPLIT_MIN = 2;
+const BACKGROUND_FOCUS_SPLIT_MAX = 20;
+const BACKGROUND_FOCUS_SOFTNESS_MIN = 2;
+const BACKGROUND_FOCUS_SOFTNESS_MAX = 6;
+const ENABLE_PAGE_BACKGROUND = true;
 const ARTICLE_LIGHTING_BLACKOUT_DURATION_MS = 500;
 const ARTICLE_LIGHTING_AMBIENT_LOW_MULTIPLIER = 0.0;
 const ARTICLE_LIGHTING_AMBIENT_TO_LOW_DURATION_MS = 100;
@@ -200,6 +223,9 @@ class App {
         this.investigationView = ViewPool.getView("investigation");
         this.foreground = document.getElementById("foreground");
         this.pageBackground = document.getElementById("page-background");
+        this.pageBackgroundPlane = this.pageBackground?.querySelector(".page-background-plane") ?? null;
+        this.pageBackgroundSharpLayer = this.pageBackground?.querySelector(".page-background-layer-sharp") ?? null;
+        this.pageBackgroundBlurLayer = this.pageBackground?.querySelector(".page-background-layer-blur") ?? null;
         this.urlInput = document.getElementById("url-input");
         this.submitButton = document.getElementById("url-submit-button");
         this.submitButtonContainer = document.getElementById("url-submit-button-container");
@@ -237,6 +263,8 @@ class App {
         this.hasSubmittedValidArticleUrl = false;
         this.shareFeedbackTimer = null;
         this.supportMenuOpen = false;
+        this.backgroundFocusLoopTimeout = null;
+        this.backgroundRackFocusTimeout = null;
         this.articleStatusView = null;
         this.articleStatusD3 = null;
         this.lastAmbientDependentLabelsVisible = null;
@@ -319,6 +347,7 @@ class App {
             this.renderer.shadowMap.enabled = false;
             this.renderer.setSize(this.getRenderDimensions().width, this.getRenderDimensions().height, false);
             this.renderer.sortObjects = false;
+            this.renderer.setClearColor(0x000000, 0);
 
             InputService.init(canvas, this.scene, this.camera);
 
@@ -414,14 +443,14 @@ class App {
                     this.taaPass = new TAARenderPass(this.scene, this.camera);
                     this.taaPass.sampleLevel = this.aaParams.sampleLevel;
                     this.taaPass.clearColor = new THREE.Color(0x000000);
-                    this.taaPass.clearAlpha = 1;
+                    this.taaPass.clearAlpha = 0;
                     this.composer.addPass(this.taaPass);
 
                 } else if (this.aaParams.mode === 'ssaa') {
                     this.ssaaPass = new SSAARenderPass(this.scene, this.camera);
                     this.ssaaPass.sampleLevel = this.aaParams.sampleLevel;
                     this.ssaaPass.clearColor = new THREE.Color(0x000000);
-                    this.ssaaPass.clearAlpha = 1;
+                    this.ssaaPass.clearAlpha = 0;
                     this.composer.addPass(this.ssaaPass);
 
                 } else {
@@ -861,17 +890,47 @@ class App {
     }
 
     initializePageBackground() {
-        if (!ENABLE_PAGE_BACKGROUND || this.pageBackground == null) {
+        if (
+            !ENABLE_PAGE_BACKGROUND ||
+            this.pageBackground == null ||
+            this.pageBackgroundPlane == null ||
+            this.pageBackgroundSharpLayer == null ||
+            this.pageBackgroundBlurLayer == null
+        ) {
             return;
         }
 
+        const randomBetween = (min, max) => min + Math.random() * (max - min);
         const randomImage = PEPE_BG_IMAGES[Math.floor(Math.random() * PEPE_BG_IMAGES.length)];
-        const rotateY = BACKGROUND_SKEW_MIN + Math.random() * (BACKGROUND_SKEW_MAX - BACKGROUND_SKEW_MIN);
-        const vignette = BACKGROUND_VIGNETTE_MIN + Math.random() * (BACKGROUND_VIGNETTE_MAX - BACKGROUND_VIGNETTE_MIN);
+        const rotateY = randomBetween(BACKGROUND_ROTATE_Y_MIN, BACKGROUND_ROTATE_Y_MAX);
+        const backgroundScale = randomBetween(BACKGROUND_SCALE_MIN, BACKGROUND_SCALE_MAX);
+        const backgroundPositionX = randomBetween(BACKGROUND_POSITION_X_MIN, BACKGROUND_POSITION_X_MAX);
+        const backgroundPositionY = randomBetween(BACKGROUND_POSITION_Y_MIN, BACKGROUND_POSITION_Y_MAX);
+        const vignette = randomBetween(BACKGROUND_VIGNETTE_MIN, BACKGROUND_VIGNETTE_MAX);
+        const focusBiasClass = rotateY >= 0 ? "focus-bias-left" : "focus-bias-right";
+        const backgroundPosition = `${backgroundPositionX.toFixed(2)}% ${backgroundPositionY.toFixed(2)}%`;
+        const focusSplit = randomBetween(BACKGROUND_FOCUS_SPLIT_MIN, BACKGROUND_FOCUS_SPLIT_MAX);
+        const focusSoftness = randomBetween(BACKGROUND_FOCUS_SOFTNESS_MIN, BACKGROUND_FOCUS_SOFTNESS_MAX);
 
-        this.pageBackground.style.backgroundImage = `url("${randomImage}")`;
-        this.pageBackground.style.transform = `perspective(500px) rotateY(${rotateY}deg) scale(1.3)`;
-        this.pageBackground.style.boxShadow = `inset 0 0 ${Math.round(window.innerHeight * vignette)}px rgba(0, 0, 0, ${vignette})`;
+        this.pageBackgroundSharpLayer.style.backgroundImage = `url("${randomImage}")`;
+        this.pageBackgroundSharpLayer.style.backgroundPosition = backgroundPosition;
+        this.pageBackgroundBlurLayer.style.backgroundImage = `url("${randomImage}")`;
+        this.pageBackgroundBlurLayer.style.backgroundPosition = backgroundPosition;
+        this.pageBackgroundPlane.style.transform =
+            `perspective(${BACKGROUND_PERSPECTIVE_PX}px) rotateY(${rotateY.toFixed(2)}deg) scale(${backgroundScale.toFixed(3)})`;
+        this.pageBackground.style.setProperty("--page-background-vignette-opacity", vignette.toFixed(3));
+        this.pageBackground.style.setProperty("--page-background-focus-easing", BACKGROUND_FOCUS_EASING);
+        this.pageBackground.style.setProperty("--page-background-focus-split", `${focusSplit.toFixed(2)}%`);
+        this.pageBackground.style.setProperty("--page-background-focus-softness", `${focusSoftness.toFixed(2)}%`);
+        this.pageBackground.classList.remove("focus-bias-left", "focus-bias-right");
+        this.pageBackground.classList.add(focusBiasClass);
+        this.applyPageBackgroundFocusState({
+            sharpLayerBlur: BACKGROUND_SHARP_LAYER_BLUR_MAX,
+            blurAmount: BACKGROUND_BLUR_LAYER_MAX,
+            blurOpacity: BACKGROUND_BLUR_OPACITY_MAX,
+            transitionMs: 0
+        });
+        this.startPageBackgroundFocusLoop();
     }
 
     hidePageBackground() {
@@ -880,6 +939,63 @@ class App {
         }
 
         this.pageBackground.classList.add("is-hidden");
+    }
+
+    applyPageBackgroundFocusState({
+        sharpLayerBlur = BACKGROUND_SHARP_LAYER_BLUR_MIN,
+        blurAmount = BACKGROUND_BLUR_LAYER_MIN,
+        blurOpacity = BACKGROUND_BLUR_OPACITY_MIN,
+        transitionMs = BACKGROUND_FOCUS_TRANSITION_MIN_MS
+    } = {}) {
+        if (this.pageBackground == null) {
+            return;
+        }
+
+        this.pageBackground.style.setProperty("--page-background-focus-transition-ms", `${Math.round(transitionMs)}ms`);
+        this.pageBackground.style.setProperty("--page-background-sharp-layer-blur", `${sharpLayerBlur.toFixed(2)}px`);
+        this.pageBackground.style.setProperty("--page-background-blur-amount", `${blurAmount.toFixed(2)}px`);
+        this.pageBackground.style.setProperty("--page-background-blur-opacity", blurOpacity.toFixed(3));
+    }
+
+    scheduleNextPageBackgroundFocus() {
+        if (!ENABLE_PAGE_BACKGROUND || this.pageBackground == null) {
+            return;
+        }
+
+        const randomBetween = (min, max) => min + Math.random() * (max - min);
+        const nextDelay = randomBetween(BACKGROUND_FOCUS_INTERVAL_MIN_MS, BACKGROUND_FOCUS_INTERVAL_MAX_MS);
+
+        clearTimeout(this.backgroundFocusLoopTimeout);
+        this.backgroundFocusLoopTimeout = window.setTimeout(() => {
+            this.applyPageBackgroundFocusState({
+                sharpLayerBlur: randomBetween(BACKGROUND_SHARP_LAYER_BLUR_MIN, BACKGROUND_SHARP_LAYER_BLUR_MAX),
+                blurAmount: randomBetween(BACKGROUND_BLUR_LAYER_MIN, BACKGROUND_BLUR_LAYER_MAX),
+                blurOpacity: randomBetween(BACKGROUND_BLUR_OPACITY_MIN, BACKGROUND_BLUR_OPACITY_MAX),
+                transitionMs: randomBetween(BACKGROUND_FOCUS_TRANSITION_MIN_MS, BACKGROUND_FOCUS_TRANSITION_MAX_MS)
+            });
+            this.scheduleNextPageBackgroundFocus();
+        }, nextDelay);
+    }
+
+    startPageBackgroundFocusLoop() {
+        if (!ENABLE_PAGE_BACKGROUND || this.pageBackground == null) {
+            return;
+        }
+
+        clearTimeout(this.backgroundRackFocusTimeout);
+        clearTimeout(this.backgroundFocusLoopTimeout);
+
+        this.backgroundRackFocusTimeout = window.setTimeout(() => {
+            const randomBetween = (min, max) => min + Math.random() * (max - min);
+
+            this.applyPageBackgroundFocusState({
+                sharpLayerBlur: randomBetween(BACKGROUND_SHARP_LAYER_BLUR_MIN, BACKGROUND_SHARP_LAYER_BLUR_MAX * 0.65),
+                blurAmount: randomBetween(BACKGROUND_BLUR_LAYER_MIN, BACKGROUND_BLUR_LAYER_MAX * 0.8),
+                blurOpacity: randomBetween(BACKGROUND_BLUR_OPACITY_MIN, BACKGROUND_BLUR_OPACITY_MAX * 0.82),
+                transitionMs: randomBetween(BACKGROUND_FOCUS_TRANSITION_MIN_MS, BACKGROUND_FOCUS_TRANSITION_MAX_MS)
+            });
+            this.scheduleNextPageBackgroundFocus();
+        }, BACKGROUND_RACK_FOCUS_DELAY_MS);
     }
 
     activateThreeCanvas() {
@@ -3320,7 +3436,7 @@ class App {
 
         if (this.renderer && this.camera && this.composer) {
             this.onWindowResize();
-            this.renderer.clear();
+            this.renderer.clear(true, true, true);
             this.camera.layers.set(MAIN_RENDER_LAYER);
             this.cameraController.update();
             this.composer.render();

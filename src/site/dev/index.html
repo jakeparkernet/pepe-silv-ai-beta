@@ -21,7 +21,14 @@
 </head>
 
 <body>
-    <div id="page-background"></div>
+    <div id="page-background">
+        <div class="page-background-plane">
+            <div class="page-background-layer page-background-layer-sharp"></div>
+            <div class="page-background-layer page-background-layer-blur"></div>
+            <div class="page-background-overlay page-background-overlay-vignette"></div>
+            <div class="page-background-overlay page-background-overlay-tint"></div>
+        </div>
+    </div>
     <canvas id="three-canvas"></canvas>
     <div id="d3-canvas-container" aria-hidden="true">
         <svg id="d3-canvas"></svg>
@@ -78,7 +85,7 @@
     <div id="foreground">
         <div id="mobile-bottom-shell">
             <div id="url-input-container">
-                <input id="url-input" placeholder="Paste or type the URL of a news article to scan for financial conflicts."
+                <input id="url-input" placeholder="Enter the URL of a news article to scan for financial conflicts."
                     type="url"></input>
                 <div id="url-submit-button-container">
                     <div id="url-submit-button"></div>
