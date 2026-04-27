@@ -17,7 +17,7 @@ class Corkboard {
     constructor(options = {}) {
         this.rootGroup = new THREE.Group();
         this.size = new THREE.Vector3(36, 24, 1);
-        this.textureRepeatPerUnit = options.textureRepeatPerUnit ?? 1;
+        this.textureRepeatPerUnit = options.textureRepeatPerUnit ?? 0.1;
         this.geometry = new THREE.PlaneGeometry(1, 1);
         this.material = getCorkboardMaterial();
         this.mesh = new THREE.Mesh(this.geometry, this.material);
@@ -100,12 +100,12 @@ export function createCorkboardMaterial({
     metalness = 0.0
 } = {}) {
     const textureLoader = new THREE.TextureLoader();
-    const map = textureLoader.load("resources/corkboard-tiling.jpg");
+    const map = textureLoader.load("resources/corkboard-tiling-2.jpg");
     map.wrapS = THREE.RepeatWrapping;
     map.wrapT = THREE.RepeatWrapping;
 
     const material = new THREE.MeshPhysicalMaterial({
-        color: 0xffffff,
+        color: "#bababa",
         map,
         roughness,
         metalness
