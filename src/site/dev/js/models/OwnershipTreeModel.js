@@ -142,7 +142,7 @@ class OwnershipTreeModel {
                 for (let j = 0; j < parentRelationships.length; j++) {
                     const relationship = parentRelationships[j];
                     const sourceId = relationship?.source ?? relationship?.source_entity_id;
-                    const targetIdForRelationship = relationship?.target ?? relationship?.target_entity_id ?? childId;
+                    const targetIdForRelationship = childId;
                     const parentEntity = this.getEntityById(sourceId);
 
                     if (sourceId == null || parentEntity == null) {

@@ -1637,7 +1637,7 @@ class ArticleD3Graph {
     };
   }
 
-  resolveLinkNodeRefs(graph) {
+   resolveLinkNodeRefs(graph) {
     const nodeById = new Map();
 
     for (let i = 0; i < graph.nodes.length; i++) {
@@ -1645,15 +1645,20 @@ class ArticleD3Graph {
       nodeById.set(node.id, node);
     }
 
+    const validLinks = [];
     for (let i = 0; i < graph.links.length; i++) {
       const link = graph.links[i];
       if (typeof link.source === "string") {
-        link.source = nodeById.get(link.source) ?? link.source;
+        link.source = nodeById.get(link.source);
       }
       if (typeof link.target === "string") {
-        link.target = nodeById.get(link.target) ?? link.target;
+        link.target = nodeById.get(link.target);
+      }
+      if (link.source != null && link.target != null) {
+        validLinks.push(link);
       }
     }
+    graph.links = validLinks;
   }
 
   hasCommonOwners(articleModel) {
@@ -1750,7 +1755,7 @@ class ArticleD3Graph {
     }));
   }
 
-  filterGraphForEvidence(graph) {
+   filterGraphForEvidence(graph) {
     const keptLinks = [];
     for (let i = 0; i < graph.links.length; i++) {
       const link = graph.links[i];
@@ -1759,7 +1764,12 @@ class ArticleD3Graph {
       }
     }
 
-    const keptNodeIds = new Set(["article-subject", "news-site"]);
+    const existingNodeIds = new Set();
+    for (let i = 0; i < graph.nodes.length; i++) {
+      existingNodeIds.add(graph.nodes[i].id);
+    }
+
+    const keptNodeIds = new Set(["article-subject", "news-site"].filter((id) => existingNodeIds.has(id)));
     const reverseChainLinksByTarget = new Map();
 
     for (let i = 0; i < keptLinks.length; i++) {
@@ -1768,10 +1778,10 @@ class ArticleD3Graph {
       const targetId = typeof link.target === "string" ? link.target : link.target?.id;
 
       if (link.kind === "direct") {
-        if (sourceId != null) {
+        if (sourceId != null && existingNodeIds.has(sourceId)) {
           keptNodeIds.add(sourceId);
         }
-        if (targetId != null) {
+        if (targetId != null && existingNodeIds.has(targetId)) {
           keptNodeIds.add(targetId);
         }
         continue;
@@ -1786,7 +1796,7 @@ class ArticleD3Graph {
       reverseChainLinksByTarget.set(targetId, incomingLinks);
     }
 
-    const queue = ["article-subject", "news-site"];
+    const queue = ["article-subject", "news-site"].filter((id) => existingNodeIds.has(id));
     const visited = new Set(queue);
     while (queue.length > 0) {
       const currentTargetId = queue.shift();
@@ -1794,7 +1804,9 @@ class ArticleD3Graph {
 
       for (let i = 0; i < incomingSourceIds.length; i++) {
         const sourceId = incomingSourceIds[i];
-        keptNodeIds.add(sourceId);
+        if (existingNodeIds.has(sourceId)) {
+          keptNodeIds.add(sourceId);
+        }
         if (visited.has(sourceId)) {
           continue;
         }
