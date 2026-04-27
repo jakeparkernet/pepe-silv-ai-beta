@@ -864,14 +864,23 @@ class InvestigationJob(Job):
                     stage=f"batch company ranking ({side})",
                 )
                 if error_message:
-                    await self._fail_investigation_gracefully(
+                    logger.warning(
+                        "Using fallback batch ranking: url=%s side=%s token=%s error=%s",
+                        self._queue_url_key,
+                        side,
+                        token,
                         error_message,
-                        stage="batch_company_ranking",
-                        failure_context=child_output,
                     )
-                    return
+                    child_output = self._build_fallback_rank_companies_output(
+                        companies_to_rank,
+                        reason=error_message,
+                        stage=f"batch_company_ranking:{side}:{token}",
+                    )
+                    ranked_entities = child_output["entities"]
+                    ranking = child_output["ranking"]
 
                 try:
+                    ordered_entities = []
                     for rank in ranking:
                         company_id = rank.get("company_id") or (rank.get("company") or {}).get("id")
                         eid = company_id
@@ -880,18 +889,46 @@ class InvestigationJob(Job):
                         deserialized_entity = Entity()
                         deserialized_entity.deserialize(e)
 
+                        ordered_entities.append((eid, deserialized_entity))
+
+                    for eid, deserialized_entity in ordered_entities:
                         self._entity_side[str(eid)] = side
                         self._entity_batch[str(eid)] = token
 
                         # Kick off the owner search for this entity (identify-if-needed then find owners).
                         self.recursively_find_owners(entity=deserialized_entity)
                 except Exception as e:
-                    await self._fail_investigation_gracefully(
-                        f"Unexpected error processing ranked batch companies: {e}",
-                        stage="batch_company_ranking",
-                        failure_context=child_output,
+                    logger.warning(
+                        "Batch ranking output was unusable, retrying with fallback order: url=%s side=%s token=%s error=%s",
+                        self._queue_url_key,
+                        side,
+                        token,
+                        e,
                     )
-                    return
+                    fallback_output = self._build_fallback_rank_companies_output(
+                        companies_to_rank,
+                        reason=f"Unexpected error processing ranked batch companies: {e}",
+                        stage=f"batch_company_ranking:{side}:{token}",
+                    )
+                    try:
+                        for rank in fallback_output["ranking"]:
+                            company_id = rank.get("company_id") or (rank.get("company") or {}).get("id")
+                            eid = company_id
+                            entity_payload = fallback_output["entities"][eid]
+
+                            deserialized_entity = Entity()
+                            deserialized_entity.deserialize(entity_payload)
+
+                            self._entity_side[str(eid)] = side
+                            self._entity_batch[str(eid)] = token
+                            self.recursively_find_owners(entity=deserialized_entity)
+                    except Exception as fallback_error:
+                        await self._fail_investigation_gracefully(
+                            f"Fallback batch ranking failed: {fallback_error}",
+                            stage="batch_company_ranking",
+                            failure_context=fallback_output,
+                        )
+                        return
 
             @returns_awaitable
             def on_ranked_wrapper (result):
@@ -1242,6 +1279,57 @@ class InvestigationJob(Job):
 
         return child_output, ranked_entities, ranking, None
 
+    def _build_fallback_rank_companies_output(
+        self,
+        entities: List[Dict[str, Any]],
+        *,
+        reason: str,
+        stage: str,
+    ) -> Dict[str, Any]:
+        entity_dict: Dict[str, Dict[str, Any]] = {}
+        ranking: List[Dict[str, Any]] = []
+
+        for idx, entity in enumerate(entities, start=1):
+            entity_payload = dict(entity or {})
+            company_id = entity_payload.get("id") or f"fallback:{stage}:{idx}"
+            entity_payload["id"] = company_id
+            entity_dict[company_id] = entity_payload
+
+            ranking.append({
+                "rank": idx,
+                "company_id": company_id,
+                "company_name": entity_payload.get("name", company_id),
+                "capital_influence_level": "Unknown",
+                "justification": "LLM ranking failed; using deterministic fallback order.",
+                "key_signals": [],
+                "confidence": 0.0,
+            })
+
+        return {
+            "entities": entity_dict,
+            "ranking": ranking,
+            "fallback_used": True,
+            "fallback_reason": reason,
+        }
+
+    def _get_final_rank_fallback_entities(self) -> List[Dict[str, Any]]:
+        common_owner_results = self._final_output_obj.get("common_owner_results") or {}
+        common_owners = common_owner_results.get("common_owners") or {}
+        owner_entities = common_owner_results.get("owner_entities") or {}
+        companies_to_rank: List[Dict[str, Any]] = []
+
+        for co_id in common_owners.keys():
+            owner_entity = owner_entities.get(co_id)
+            if not owner_entity:
+                continue
+
+            if isinstance(owner_entity, dict):
+                companies_to_rank.append(dict(owner_entity))
+            else:
+                companies_to_rank.append(owner_entity.to_serializeable_object())
+
+        return companies_to_rank
+
     async def _fail_investigation_gracefully(
         self,
         error_message: str,
@@ -1312,37 +1400,64 @@ class InvestigationJob(Job):
             stage="final company ranking",
         )
         if error_message:
-            self._final_output_obj["final_ranking"] = child_output
-            self._final_output_obj["top_owner"] = None
-            await self._fail_investigation_gracefully(
+            logger.warning(
+                "Using fallback final ranking: url=%s error=%s",
+                self._queue_url_key,
                 error_message,
-                stage="final_company_ranking",
-                failure_context=child_output,
             )
-            return
+            child_output = self._build_fallback_rank_companies_output(
+                self._get_final_rank_fallback_entities(),
+                reason=error_message,
+                stage="final_company_ranking",
+            )
+            ranked_entities = child_output["entities"]
+            ranking = child_output["ranking"]
 
         try:
             top_entity_ranking = ranking[0]
             company_id = top_entity_ranking.get("company_id") or (top_entity_ranking.get("company") or {}).get("id")
             
             if not company_id:
-                error_message = f"Invalid ranking result, missing company_id: {top_entity_ranking}"
-                self._final_output_obj["final_ranking"] = child_output
-                self._final_output_obj["top_owner"] = None
-                await self._fail_investigation_gracefully(
-                    error_message,
-                    stage="final_company_ranking",
-                    failure_context=child_output,
+                fallback_reason = f"Invalid ranking result, missing company_id: {top_entity_ranking}"
+                logger.warning(
+                    "Final ranking missing company_id, retrying with fallback order: url=%s error=%s",
+                    self._queue_url_key,
+                    fallback_reason,
                 )
-                return
+                child_output = self._build_fallback_rank_companies_output(
+                    self._get_final_rank_fallback_entities(),
+                    reason=fallback_reason,
+                    stage="final_company_ranking",
+                )
+                ranked_entities = child_output["entities"]
+                ranking = child_output["ranking"]
+                top_entity_ranking = ranking[0]
+                company_id = top_entity_ranking.get("company_id")
 
             top_entity = ranked_entities.get(company_id) if isinstance(ranked_entities, dict) else None
             if top_entity is None:
-                error_message = f"Invalid ranking result, missing top entity in entities map for company_id={company_id}"
+                fallback_reason = f"Invalid ranking result, missing top entity in entities map for company_id={company_id}"
+                logger.warning(
+                    "Final ranking missing top entity, retrying with fallback order: url=%s error=%s",
+                    self._queue_url_key,
+                    fallback_reason,
+                )
+                child_output = self._build_fallback_rank_companies_output(
+                    self._get_final_rank_fallback_entities(),
+                    reason=fallback_reason,
+                    stage="final_company_ranking",
+                )
+                ranked_entities = child_output["entities"]
+                ranking = child_output["ranking"]
+                top_entity_ranking = ranking[0]
+                company_id = top_entity_ranking.get("company_id")
+                top_entity = ranked_entities.get(company_id) if company_id else None
+
+            if not company_id or top_entity is None:
                 self._final_output_obj["final_ranking"] = child_output
                 self._final_output_obj["top_owner"] = None
                 await self._fail_investigation_gracefully(
-                    error_message,
+                    "Final company ranking failed and fallback order could not be constructed",
                     stage="final_company_ranking",
                     failure_context=child_output,
                 )
