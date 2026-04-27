@@ -20,7 +20,6 @@
     --vv-offset-bottom: 0px;
     --mobile-shell-padding: 10px;
     --mobile-shell-surface: rgba(25, 18, 13, 0.78);
-    --mobile-shell-surface-light: rgba(255, 248, 236, 0.92);
     --mobile-shell-border: rgba(255, 255, 255, 0.18);
     --mobile-shell-shadow: 0 16px 36px rgba(0, 0, 0, 0.22);
 }
@@ -107,16 +106,6 @@ body {
 
 #d3-canvas-container {
     --article-status-d3-offset-y: 200px;
-    --article-graph-legend-x: 24px;
-    --article-graph-legend-y: 0px;
-    --article-graph-legend-width: 120px;
-    --article-graph-legend-row-height: 24px;
-    --article-graph-legend-title-height: 18px;
-    --article-graph-legend-padding-x: 14px;
-    --article-graph-legend-padding-y: 12px;
-    --article-graph-legend-swatch-size: 12px;
-    --article-graph-legend-title-font-size: 12px;
-    --article-graph-legend-row-font-size: 12px;
     position: absolute;
     inset: 0;
     z-index: 10;
@@ -187,7 +176,7 @@ body {
     margin: 0 0 8px;
     color: #24180d;
     font-family: "Trebuchet MS", "Segoe UI", sans-serif;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 800;
     letter-spacing: 0.05em;
 }
@@ -279,11 +268,6 @@ body {
     flex: 0 0 auto;
 }
 
-#support-buttons.is-open {
-    opacity: 1;
-    pointer-events: auto;
-}
-
 #article-action-toolbar {
     position: absolute;
     --toolbar-fallback-top: 220px;
@@ -299,36 +283,6 @@ body {
 #mobile-top-controls,
 #mobile-primary-actions {
     display: contents;
-}
-
-#support-cta-button {
-    border: 0;
-    border-radius: 999px;
-    padding: 0 14px;
-    min-height: 36px;
-    background: rgba(24, 18, 14, 0.8);
-    color: rgba(255, 247, 234, 0.94);
-    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-    cursor: pointer;
-    box-shadow:
-        inset 0 0 0 1px rgba(255, 255, 255, 0.14),
-        0 10px 22px rgba(0, 0, 0, 0.16);
-    backdrop-filter: blur(10px);
-    transition: background-color 140ms ease, color 140ms ease, transform 140ms ease;
-}
-
-#support-cta-button:hover {
-    background: rgba(36, 27, 20, 0.88);
-    transform: translateY(-1px);
-}
-
-#support-cta-button.light-mode {
-    background: rgba(255, 248, 236, 0.92);
-    color: #4d331d;
-    box-shadow: inset 0 0 0 1px rgba(116, 91, 60, 0.18);
 }
 
 #new-search-container,
@@ -996,19 +950,6 @@ body {
 }
 
 @media (max-width: 768px) {
-    #d3-canvas-container {
-        --article-graph-legend-x: 14px;
-        --article-graph-legend-y: 118px;
-        --article-graph-legend-width: 120px;
-        --article-graph-legend-row-height: 28px;
-        --article-graph-legend-title-height: 22px;
-        --article-graph-legend-padding-x: 16px;
-        --article-graph-legend-padding-y: 14px;
-        --article-graph-legend-swatch-size: 14px;
-        --article-graph-legend-title-font-size: 14px;
-        --article-graph-legend-row-font-size: 13px;
-    }
-
     #mobile-top-shell {
         position: fixed;
         top: var(--vv-top);
