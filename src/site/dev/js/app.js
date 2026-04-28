@@ -258,6 +258,7 @@ class App {
         this.articleUrlDisplay = document.getElementById("article-url-display");
         this.summaryBanner = document.getElementById("summary-banner");
         this.pageTitle = document.getElementById("page-title");
+        this.attribution = document.getElementById("attribution");
         this.visualizationMode = this.getInitialVisualizationMode();
         this.debugControlsVisible = false;
         this.isManualUrlSubmitMode = false;
@@ -3498,6 +3499,7 @@ class App {
         this.supportCtaButton?.classList.toggle("light-mode", showD3);
         this.supportButtons?.classList.toggle("light-mode", showD3);
         this.pageTitle?.classList.toggle("light-mode", showD3);
+        this.attribution?.classList.toggle("light-mode", showD3);
         this.updateRelationshipKeyVisibility();
 
         if (showD3) {
