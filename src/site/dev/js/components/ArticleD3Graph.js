@@ -861,8 +861,32 @@ class ArticleD3Graph {
 
       event.stopPropagation();
       this.clearSelectionState();
+
+      const relationshipData = d.data;
+      const pepe = window[`apps_${performance.timeOrigin}`]?.pepe;
+      let model = pepe?.relationships?.[relationshipData?.id];
+
+      if (model == null) {
+        const evidenceIds = relationshipData?.evidence_ids ?? [];
+        const resolvedEvidence = {};
+        for (let i = 0; i < evidenceIds.length; i++) {
+          const evId = evidenceIds[i];
+          const ev = pepe?.evidence?.[evId];
+          if (ev) {
+            resolvedEvidence[evId] = ev;
+          }
+        }
+        model = {
+          id: relationshipData?.id,
+          source: relationshipData?.source_entity_id ?? relationshipData?.source,
+          target: relationshipData?.target_entity_id ?? relationshipData?.target,
+          relation: relationshipData?.relation,
+          evidence: resolvedEvidence
+        };
+      }
+
       const detailData = {
-        model: d.data,
+        model,
         surface: "arrow"
       };
       window[`apps_${performance.timeOrigin}`]?.pepe?.openDetailPanel?.({
@@ -870,7 +894,13 @@ class ArticleD3Graph {
         kind: "relationship",
         data: detailData
       });
-      console.log("Arrow relationship clicked", detailData);
+      console.log("Arrow relationship clicked", {
+        linkId: d.id,
+        relId: relationshipData?.id,
+        hasResolvedModel: !!pepe?.relationships?.[relationshipData?.id],
+        evidenceCount: model?.evidence ? Object.keys(model.evidence).length : 0,
+        detailData
+      });
     });
 
     linkSelection

@@ -1041,6 +1041,24 @@ class App {
         }, BACKGROUND_RACK_FOCUS_DELAY_MS);
     }
 
+    stopPageBackgroundFocusLoop() {
+        if (!ENABLE_PAGE_BACKGROUND || this.pageBackground == null) {
+            return;
+        }
+
+        clearTimeout(this.backgroundRackFocusTimeout);
+        clearTimeout(this.backgroundFocusLoopTimeout);
+        this.backgroundRackFocusTimeout = null;
+        this.backgroundFocusLoopTimeout = null;
+
+        this.applyPageBackgroundFocusState({
+            sharpLayerBlur: 0,
+            blurAmount: 0,
+            blurOpacity: 0,
+            transitionMs: 600
+        });
+    }
+
     activateThreeCanvas() {
         if (!ENABLE_PAGE_BACKGROUND || this.threeCanvas == null) {
             return;
@@ -2081,6 +2099,7 @@ class App {
         this.scene?.remove?.(this.articleView.getRootGroup?.());
         ViewPool.returnView(this.articleView);
         this.articleView = null;
+        this.startPageBackgroundFocusLoop();
     }
 
     async updateArticleStatusProgress(articleObject) {
@@ -2176,6 +2195,7 @@ class App {
         }
         window[`apps_${performance.timeOrigin}`].pepe.entities = this.entities;
         window[`apps_${performance.timeOrigin}`].pepe.relationships = this.relationships;
+        window[`apps_${performance.timeOrigin}`].pepe.evidence = this.evidence;
 
         let articleModel = new ArticleModel(articleObject);
         let articleView = ViewPool.getView("article_view");
@@ -2212,6 +2232,7 @@ class App {
         this.applyResolvedArticleCameraView();
         this.cameraController?.enable(true);
         await this.fadeOutForeground();
+        this.stopPageBackgroundFocusLoop();
         console.log(articleObject);
     }
 
