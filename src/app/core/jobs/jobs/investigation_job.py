@@ -1312,6 +1312,106 @@ class InvestigationJob(Job):
             "fallback_reason": reason,
         }
 
+    def _bfs_distances_from_entity(self, relationships: Dict[str, Any], start_id: str) -> Dict[str, int]:
+        """
+        BFS from start_id up the ownership chain.
+        Returns dict: entity_id -> distance (number of relationships to traverse).
+
+        Relationships: source_entity_id owns target_entity_id.
+        To go "up" from start_id, find relationships where target_entity_id == start_id,
+        then source_entity_id is an owner (distance 1), recurse upward.
+        """
+        from collections import deque
+
+        # Build reverse adjacency: entity -> list of entities that own it
+        owners_of: Dict[str, List[str]] = {}
+        for rel_id, rel in relationships.items():
+            source = rel.get("source_entity_id") or rel.get("source")
+            target = rel.get("target_entity_id") or rel.get("target")
+            if not source or not target:
+                continue
+            if target not in owners_of:
+                owners_of[target] = []
+            owners_of[target].append(source)
+
+        dist: Dict[str, int] = {}
+        queue = deque([(start_id, 0)])
+
+        while queue:
+            entity_id, d = queue.popleft()
+            if entity_id in dist:
+                continue
+            dist[entity_id] = d
+            for owner_id in owners_of.get(entity_id, []):
+                if owner_id not in dist:
+                    queue.append((owner_id, d + 1))
+
+        return dist
+
+    def _find_top_owner_by_shortest_path(
+        self,
+        common_owner_results: Dict[str, Any],
+        entity_a: Dict[str, Any],
+        entity_b: Dict[str, Any],
+        ranking: List[Dict[str, Any]],
+    ) -> Optional[Tuple[Dict[str, Any], str]]:
+        """
+        Find the common owner with minimum total distance to entity_a and entity_b.
+        Uses influence ranking as tie-breaker when distances are equal.
+
+        Returns (top_owner_dict, company_id) or None if no valid owner found.
+        """
+        common_owners = common_owner_results.get("common_owners") or {}
+        relationships = common_owner_results.get("relationships") or {}
+
+        if not common_owners or not relationships:
+            return None
+
+        entity_a_id = entity_a.get("id") if isinstance(entity_a, dict) else getattr(entity_a, "id", None)
+        entity_b_id = entity_b.get("id") if isinstance(entity_b, dict) else getattr(entity_b, "id", None)
+
+        if not entity_a_id or not entity_b_id:
+            return None
+
+        # Build influence lookup from ranking: company_id -> (rank, influence_level)
+        influence_map: Dict[str, Tuple[int, str]] = {}
+        for idx, entry in enumerate(ranking):
+            company_id = entry.get("company_id") or (entry.get("company") or {}).get("id")
+            if company_id:
+                influence_map[company_id] = (idx, entry.get("capital_influence_level", "Unknown"))
+
+        dist_a = self._bfs_distances_from_entity(relationships, entity_a_id)
+        dist_b = self._bfs_distances_from_entity(relationships, entity_b_id)
+
+        best_owner = None
+        best_id = None
+        best_total_dist = float('inf')
+        best_influence_rank = float('inf')
+
+        for owner_id, owner in common_owners.items():
+            d_a = dist_a.get(owner_id, float('inf'))
+            d_b = dist_b.get(owner_id, float('inf'))
+            total_dist = d_a + d_b
+
+            if total_dist == float('inf'):
+                continue
+
+            # Get influence rank for tie-breaking
+            influence_rank = float('inf')
+            if owner_id in influence_map:
+                influence_rank = influence_map[owner_id][0]
+
+            # Select based on: 1) shortest total distance, 2) best influence rank
+            if total_dist < best_total_dist or (total_dist == best_total_dist and influence_rank < best_influence_rank):
+                best_total_dist = total_dist
+                best_influence_rank = influence_rank
+                best_owner = owner
+                best_id = owner_id
+
+        if best_owner is not None:
+            return best_owner, best_id
+        return None
+
     def _get_final_rank_fallback_entities(self) -> List[Dict[str, Any]]:
         common_owner_results = self._final_output_obj.get("common_owner_results") or {}
         common_owners = common_owner_results.get("common_owners") or {}
@@ -1413,109 +1513,138 @@ class InvestigationJob(Job):
             ranked_entities = child_output["entities"]
             ranking = child_output["ranking"]
 
-        try:
-            top_entity_ranking = ranking[0]
-            company_id = top_entity_ranking.get("company_id") or (top_entity_ranking.get("company") or {}).get("id")
-            
-            if not company_id:
-                fallback_reason = f"Invalid ranking result, missing company_id: {top_entity_ranking}"
-                logger.warning(
-                    "Final ranking missing company_id, retrying with fallback order: url=%s error=%s",
-                    self._queue_url_key,
-                    fallback_reason,
-                )
-                child_output = self._build_fallback_rank_companies_output(
-                    self._get_final_rank_fallback_entities(),
-                    reason=fallback_reason,
-                    stage="final_company_ranking",
-                )
-                ranked_entities = child_output["entities"]
-                ranking = child_output["ranking"]
-                top_entity_ranking = ranking[0]
-                company_id = top_entity_ranking.get("company_id")
+        # Use BFS to find top owner by shortest path, with influence as tie-breaker
+        common_owner_results = self._final_output_obj.get("common_owner_results") or {}
+        article_subject = self._final_output_obj.get("article_subject")
+        news_site = self._final_output_obj.get("news_site")
 
-            top_entity = ranked_entities.get(company_id) if isinstance(ranked_entities, dict) else None
-            if top_entity is None:
-                fallback_reason = f"Invalid ranking result, missing top entity in entities map for company_id={company_id}"
-                logger.warning(
-                    "Final ranking missing top entity, retrying with fallback order: url=%s error=%s",
-                    self._queue_url_key,
-                    fallback_reason,
-                )
-                child_output = self._build_fallback_rank_companies_output(
-                    self._get_final_rank_fallback_entities(),
-                    reason=fallback_reason,
-                    stage="final_company_ranking",
-                )
-                ranked_entities = child_output["entities"]
-                ranking = child_output["ranking"]
-                top_entity_ranking = ranking[0]
-                company_id = top_entity_ranking.get("company_id")
-                top_entity = ranked_entities.get(company_id) if company_id else None
+        top_owner_result = self._find_top_owner_by_shortest_path(
+            common_owner_results,
+            news_site,
+            article_subject,
+            ranking,
+        )
 
-            if not company_id or top_entity is None:
+        if top_owner_result:
+            top_entity, company_id = top_owner_result
+            # Use entity from ranked_entities if available, otherwise use the one from BFS
+            if isinstance(ranked_entities, dict) and company_id in ranked_entities:
+                top_entity = ranked_entities[company_id]
+        else:
+            # Fallback to original ranking-based selection
+            try:
+                top_entity_ranking = ranking[0]
+                company_id = top_entity_ranking.get("company_id") or (top_entity_ranking.get("company") or {}).get("id")
+
+                if not company_id:
+                    fallback_reason = f"Invalid ranking result, missing company_id: {top_entity_ranking}"
+                    logger.warning(
+                        "Final ranking missing company_id, retrying with fallback order: url=%s error=%s",
+                        self._queue_url_key,
+                        fallback_reason,
+                    )
+                    child_output = self._build_fallback_rank_companies_output(
+                        self._get_final_rank_fallback_entities(),
+                        reason=fallback_reason,
+                        stage="final_company_ranking",
+                    )
+                    ranked_entities = child_output["entities"]
+                    ranking = child_output["ranking"]
+                    top_entity_ranking = ranking[0]
+                    company_id = top_entity_ranking.get("company_id")
+
+                top_entity = ranked_entities.get(company_id) if isinstance(ranked_entities, dict) else None
+                if top_entity is None:
+                    fallback_reason = f"Invalid ranking result, missing top entity in entities map for company_id={company_id}"
+                    logger.warning(
+                        "Final ranking missing top entity, retrying with fallback order: url=%s error=%s",
+                        self._queue_url_key,
+                        fallback_reason,
+                    )
+                    child_output = self._build_fallback_rank_companies_output(
+                        self._get_final_rank_fallback_entities(),
+                        reason=fallback_reason,
+                        stage="final_company_ranking",
+                    )
+                    ranked_entities = child_output["entities"]
+                    ranking = child_output["ranking"]
+                    top_entity_ranking = ranking[0]
+                    company_id = top_entity_ranking.get("company_id")
+                    top_entity = ranked_entities.get(company_id) if company_id else None
+
+                if not company_id or top_entity is None:
+                    self._final_output_obj["final_ranking"] = child_output
+                    self._final_output_obj["top_owner"] = None
+                    await self._fail_investigation_gracefully(
+                        "Final company ranking failed and fallback order could not be constructed",
+                        stage="final_company_ranking",
+                        failure_context=child_output,
+                    )
+                    return
+            except Exception as e:
+                logger.warning(f"Failed to select top owner via fallback: {e}")
                 self._final_output_obj["final_ranking"] = child_output
                 self._final_output_obj["top_owner"] = None
                 await self._fail_investigation_gracefully(
-                    "Final company ranking failed and fallback order could not be constructed",
+                    "Final company ranking failed",
                     stage="final_company_ranking",
                     failure_context=child_output,
                 )
                 return
 
-            self._final_output_obj["final_ranking"] = child_output
-            self._final_output_obj["top_owner"] = top_entity
+        self._final_output_obj["final_ranking"] = child_output
+        self._final_output_obj["top_owner"] = top_entity
 
-            def serialize_base_dict (base_dict):
-                transportable_dict = {}
+        def serialize_base_dict (base_dict):
+            transportable_dict = {}
 
-                for key, value in base_dict.items():
-                    transportable_dict[key] = value.to_serializeable_object()
-                
-                return transportable_dict
+            for key, value in base_dict.items():
+                transportable_dict[key] = value.to_serializeable_object()
+            
+            return transportable_dict
 
-            def serialize_ownership_tree (ownership_tree):
-                transportable_ownership_tree = {
-                    "target_entity": ownership_tree["target_entity"].to_serializeable_object(),
-                    "owner_entities": serialize_base_dict(ownership_tree["owner_entities"]),
-                    "relationships": serialize_base_dict(ownership_tree["relationships"])
-                }
-
-                return transportable_ownership_tree
-
-            article_subject = self._final_output_obj["article_subject"]
-            news_site = self._final_output_obj["news_site"]
-
-            investigation_data_transportable = {
-                "article_subject": article_subject if isinstance(article_subject, dict) else article_subject.to_serializeable_object(),
-                "news_site": news_site if isinstance(news_site, dict) else news_site.to_serializeable_object(),
-                "common_owner_results": {
-                    "a_ownership_tree": serialize_ownership_tree(self._final_output_obj["common_owner_results"]["a_ownership_tree"]),
-                    "b_ownership_tree": serialize_ownership_tree(self._final_output_obj["common_owner_results"]["b_ownership_tree"]),
-                    "relationships": serialize_base_dict(self._final_output_obj["common_owner_results"]["relationships"]),
-                    "owner_entities": serialize_base_dict(self._final_output_obj["common_owner_results"]["owner_entities"]),
-                    "common_owners": serialize_base_dict(self._final_output_obj["common_owner_results"]["common_owners"])
-                },
-                "final_ranking": self._final_output_obj["final_ranking"],
-                "top_owner": self._final_output_obj["top_owner"]
+        def serialize_ownership_tree (ownership_tree):
+            transportable_ownership_tree = {
+                "target_entity": ownership_tree["target_entity"].to_serializeable_object(),
+                "owner_entities": serialize_base_dict(ownership_tree["owner_entities"]),
+                "relationships": serialize_base_dict(ownership_tree["relationships"])
             }
 
-            evidence_ids = self._collect_all_evidence_ids(self._final_output_obj)
-            self._final_output_obj["evidence"] = self._serialize_evidence(evidence_ids)
+            return transportable_ownership_tree
 
-            company_a = article_subject["id"] if isinstance(article_subject, dict) else article_subject.id
-            company_b = news_site["id"] if isinstance(news_site, dict) else news_site.id
-            top_owner = self._final_output_obj.get("top_owner")
-            article_subject_name = article_subject["name"] if isinstance(article_subject, dict) else getattr(article_subject, "name", None) or "?"
-            news_site_name = news_site["name"] if isinstance(news_site, dict) else getattr(news_site, "name", None) or "?"
+        article_subject = self._final_output_obj["article_subject"]
+        news_site = self._final_output_obj["news_site"]
 
-            if top_owner:
-                top_owner_name = top_owner.get("name", "Unknown") if isinstance(top_owner, dict) else getattr(top_owner, "name", "Unknown")
-                summary = f"{top_owner_name} owns both {article_subject_name} and {news_site_name}"
-            else:
-                summary = f"No common owner found between {article_subject_name} and {news_site_name}"
+        investigation_data_transportable = {
+            "article_subject": article_subject if isinstance(article_subject, dict) else article_subject.to_serializeable_object(),
+            "news_site": news_site if isinstance(news_site, dict) else news_site.to_serializeable_object(),
+            "common_owner_results": {
+                "a_ownership_tree": serialize_ownership_tree(self._final_output_obj["common_owner_results"]["a_ownership_tree"]),
+                "b_ownership_tree": serialize_ownership_tree(self._final_output_obj["common_owner_results"]["b_ownership_tree"]),
+                "relationships": serialize_base_dict(self._final_output_obj["common_owner_results"]["relationships"]),
+                "owner_entities": serialize_base_dict(self._final_output_obj["common_owner_results"]["owner_entities"]),
+                "common_owners": serialize_base_dict(self._final_output_obj["common_owner_results"]["common_owners"])
+            },
+            "final_ranking": self._final_output_obj["final_ranking"],
+            "top_owner": self._final_output_obj["top_owner"]
+        }
 
-            def persist_final_results_sync():
+        evidence_ids = self._collect_all_evidence_ids(self._final_output_obj)
+        self._final_output_obj["evidence"] = self._serialize_evidence(evidence_ids)
+
+        company_a = article_subject["id"] if isinstance(article_subject, dict) else article_subject.id
+        company_b = news_site["id"] if isinstance(news_site, dict) else news_site.id
+        top_owner = self._final_output_obj.get("top_owner")
+        article_subject_name = article_subject["name"] if isinstance(article_subject, dict) else getattr(article_subject, "name", None) or "?"
+        news_site_name = news_site["name"] if isinstance(news_site, dict) else getattr(news_site, "name", None) or "?"
+
+        if top_owner:
+            top_owner_name = top_owner.get("name", "Unknown") if isinstance(top_owner, dict) else getattr(top_owner, "name", "Unknown")
+            summary = f"{top_owner_name} owns both {article_subject_name} and {news_site_name}"
+        else:
+            summary = f"No common owner found between {article_subject_name} and {news_site_name}"
+
+        def persist_final_results_sync():
                 supabase = _get_supabase_service_client()
 
                 existing = (
@@ -1549,7 +1678,7 @@ class InvestigationJob(Job):
                     .table("article_queue")
                     .update({"ownership_tree_id": ownership_tree_id})
                     .eq("url", self._queue_url_key)
-                    .is_("ownership_tree_id", None)
+                    .neq("status", "complete")
                     .execute()
                 )
 
@@ -1566,7 +1695,8 @@ class InvestigationJob(Job):
                     "ownership_tree_update_data": ownership_tree_update_res.data,
                     "status_update_data": status_update_res.data,
                 }
-
+        
+        try:
             persistence_result = await self._run_supabase_operation_with_retry(
                 "persist final ranked investigation results",
                 persist_final_results_sync,

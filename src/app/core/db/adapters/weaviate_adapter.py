@@ -2,6 +2,7 @@
 from __future__ import annotations
 import uuid
 import weaviate
+from weaviate.classes.query import QueryReference
 from app.util.has_attribute import has_attribute
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 from datetime import datetime
@@ -969,20 +970,68 @@ class WeaviateAdapter(DatabaseAdapter):
             raise DatabaseError(f"Failed to get relationship {id}: {e}")
     
     async def get_all_relationships (self):
-        """Get all relationships in the database"""
+        """Get all relationships in the database using Weaviate v4 pagination"""
         try:
-            query = f"""
-            {{
-            Get {{
-                Relationship{{
-                uuid
-                }}
-            }}
-            }}
-            """
-
-            relationships_raw = await ww.query_raw(self._client, query)
-            return await self.get_parsed_relationships(relationships_raw)
+            import logging
+            logger = logging.getLogger(__name__)
+            
+            all_relationships = []
+            offset = 0
+            limit = 200  # Fetch in batches of 200
+            
+            while True:
+                # Use Weaviate v4 collection API with offset pagination
+                relationship_collection = self._client.collections.get("Relationship")
+                
+                response = await relationship_collection.query.fetch_objects(
+                    limit=limit,
+                    offset=offset,
+                    return_references=[
+                        QueryReference(link_on="source_entity"),
+                        QueryReference(link_on="target_entity"),
+                        QueryReference(link_on="evidence"),
+                    ],
+                )
+                
+                if not response.objects:
+                    break
+                    
+                # Parse objects into Relationship models
+                batch = []
+                for obj in response.objects:
+                    try:
+                        # Weaviate v4 returns objects with .uuid and .properties
+                        # parse_relationship expects either:
+                        # 1. An object with .properties and .references (Weaviate v3 style)
+                        # 2. A dict with "properties" and "references" keys
+                        
+                        # Build the format parse_relationship expects
+                        data = type('obj', (object,), {})()
+                        data.uuid = str(obj.uuid)
+                        data.properties = obj.properties
+                        data.references = {}
+                        
+                        # Extract references
+                        if hasattr(obj, 'references') and obj.references:
+                            for ref_name, ref_objs in obj.references.items():
+                                if ref_objs and hasattr(ref_objs, 'objects') and ref_objs.objects:
+                                    data.references[ref_name] = ref_objs
+                        
+                        rel = parse_relationship(data)
+                        batch.append(rel)
+                    except Exception as e:
+                        logger.warning(f"Failed to parse relationship {getattr(obj, 'uuid', '?')}: {e}")
+                        continue
+                
+                all_relationships.extend(batch)
+                
+                # If we got fewer than limit, we're done
+                if len(response.objects) < limit:
+                    break
+                    
+                offset += limit
+            
+            return all_relationships
         except Exception as e:
             raise DatabaseError(f"Failed to get all relationships: {e}")
 
@@ -1007,6 +1056,21 @@ class WeaviateAdapter(DatabaseAdapter):
             return True
         except Exception as e:
             raise DatabaseError(f"Failed to delete relationship {id}: {e}")
+    
+    async def add_evidence_to_relationship(self, relationship_id: str, evidence_ids: List[str]) -> bool:
+        """Add evidence references to a relationship, skipping duplicates."""
+        try:
+            existing_refs = await ww.get_object_references(self._client, "Relationship", relationship_id, "evidence")
+            existing_ids = {str(item.uuid) for item in existing_refs} if existing_refs else set()
+
+            for ev_id in evidence_ids:
+                if ev_id not in existing_ids:
+                    await ww.add_object_reference(self._client, "Relationship", relationship_id, "evidence", ev_id)
+                    existing_ids.add(ev_id)
+
+            return True
+        except Exception as e:
+            raise DatabaseError(f"Failed to add evidence to relationship {relationship_id}: {e}")
     
     async def find_relationships_by_source (self, source_id: str) -> List[Relationship]:
         """Find relationships where entity is the source"""

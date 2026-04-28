@@ -1759,9 +1759,9 @@ class ArticleD3Graph {
     const keptLinks = [];
     for (let i = 0; i < graph.links.length; i++) {
       const link = graph.links[i];
-      if (link.kind === "direct" || relationshipHasCompleteEvidence(link.data)) {
+      //if (link.kind === "direct" || relationshipHasCompleteEvidence(link.data)) {
         keptLinks.push(link);
-      }
+     // }
     }
 
     const existingNodeIds = new Set();

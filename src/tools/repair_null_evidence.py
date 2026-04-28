@@ -25,7 +25,6 @@ import uuid
 
 from app.core.db.database_service import DatabaseService
 from app.core.db.models import Evidence, Relationship, Entity
-from app.core.db.weaviate import weaviate_wrapper as ww
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -155,30 +154,7 @@ async def create_evidence_in_weaviate(service, evidence_data):
 
 async def update_relationship_evidence(service, relationship_id, evidence_ids):
     """Update a relationship's evidence_ids by adding new evidence references."""
-    from app.core.db.weaviate import weaviate_wrapper as ww
-
-    client = await ww.create_async_client()
-
-    if not client:
-        logger.warning("No client available, cannot update relationship")
-        return False
-
-    try:
-        existing_evidence = await ww.get_object_references(client, "Relationship", relationship_id, "evidence")
-        existing_ids = set(str(item.uuid) for item in existing_evidence) if existing_evidence else set()
-
-        for ev_id in evidence_ids:
-            if ev_id not in existing_ids:
-                try:
-                    await ww.add_object_reference(client, "Relationship", relationship_id, "evidence", ev_id)
-                    existing_ids.add(ev_id)
-                    logger.info(f"Added evidence reference {ev_id} to relationship {relationship_id}")
-                except Exception as e:
-                    logger.warning(f"Failed to add evidence reference {ev_id}: {e}")
-    finally:
-        await client.close()
-
-    return True
+    return await service.add_evidence_to_relationship(relationship_id, evidence_ids)
 
 
 async def repair_relationship(service, rel, dry_run=False):
@@ -212,6 +188,7 @@ async def repair_relationship(service, rel, dry_run=False):
 
     if created_evidence_ids:
         await update_relationship_evidence(service, rel.id, created_evidence_ids)
+        logger.info(f"[{rel.id}] FIXED: created {len(created_evidence_ids)} evidence items")
 
     return created_evidence_ids
 
