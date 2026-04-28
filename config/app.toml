@@ -1,0 +1,22 @@
+# config/app.toml - Updated with database section
+
+[app]
+# Swap the pluggable server class to REST+SSE implementation
+env = "dev"
+log_level = "INFO"
+
+[database]
+# Database adapter configuration
+adapter = "weaviate"
+
+[edge]
+adapter = "aws"
+
+[job_database]
+adapter = "jsonl"
+
+[http]
+host = "0.0.0.0"
+port = 8080
+base_path = "/api"
+allowed_origins = ["*"]
