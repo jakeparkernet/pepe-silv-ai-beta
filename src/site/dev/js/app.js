@@ -36,9 +36,9 @@ import { ArticleStatus } from "./views/ArticleStatus.js";
 const MAIN_RENDER_LAYER = 0;
 const SDF_TEXT_RENDER_LAYER = 1;
 const PEPE_BG_IMAGES = [
-    "./resources/pepe-bg-1.png",
-    "./resources/pepe-bg-2.png",
-    "./resources/pepe-bg-3.png"
+    "./resources/pepe-bg-1.webp",
+    "./resources/pepe-bg-2.webp",
+    "./resources/pepe-bg-3.webp"
 ];
 const BACKGROUND_PERSPECTIVE_PX = 500;
 const BACKGROUND_ROTATE_Y_MIN = -18;

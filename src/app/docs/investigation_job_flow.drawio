@@ -1,0 +1,209 @@
+<mxfile host="app.diagrams.net" version="24.7.17">
+  <diagram id="investigation-job-flow" name="Investigation Job Flow">
+    <mxGraphModel dx="1600" dy="2200" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="2200" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="investigation" value="Job: investigation&lt;br&gt;Description: Investigates a news article&lt;br&gt;Summary: Orchestrates scrape + site ID, ad/applicability checks, dual-side owner traversal, repeated common-owner checks, ranking, and final persistence." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="470" y="20" width="360" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="echo_callback" value="Job: echo_callback&lt;br&gt;Description: Echoes the input&lt;br&gt;Summary: Debug callback used near startup; not part of ownership logic." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="180" width="260" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="scrape_page_callback" value="Job: scrape_page_callback&lt;br&gt;Description: Scrapes a web page&lt;br&gt;Summary: Edge-backed scraper wrapper that returns raw HTML and extracted article text unchanged for downstream jobs." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="360" y="180" width="300" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="identify_news_site" value="Job: identify_news_site&lt;br&gt;Description: Identifies a news site based on a url&lt;br&gt;Summary: Resolves the publisher org from the URL domain via DB lookup or search + LLM fallback." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="760" y="180" width="300" height="110" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="check_for_ad" value="Job: check_for_ad&lt;br&gt;Description: Conservative detector for commerce intent, affiliate links, and whether affiliate/commission disclosure is explicit enough to trust.&lt;br&gt;Summary: Heuristic prepass plus optional LLM review; investigation records the result but does not branch into more jobs here." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="170" y="340" width="330" height="140" as="geometry"/>
+        </mxCell>
+        <mxCell id="check_article_applicability" value="Job: check_article_applicability&lt;br&gt;Description: Checks if the article is about a specific product or company.&lt;br&gt;Summary: Extracts company mentions, short-circuits zero/one-result cases, and selects a primary company when several are present." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="540" y="340" width="330" height="130" as="geometry"/>
+        </mxCell>
+        <mxCell id="search_callback" value="Job: search_callback&lt;br&gt;Description: Searches Brave&lt;br&gt;Summary: Raw Brave search callback wrapper used by site identification." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="920" y="340" width="240" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="extract_article_companies" value="Job: extract_article_companies&lt;br&gt;Description: Extracts all companies mentioned in an article.&lt;br&gt;Summary: LLM extraction pass that returns grounded company mentions with prominence and context." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="500" y="520" width="290" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="select_primary_company" value="Job: select_primary_company&lt;br&gt;Description: Selects the most prominent company from a list of candidates.&lt;br&gt;Summary: LLM tie-breaker for multi-company articles; falls back to the first candidate if needed." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="840" y="520" width="290" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="identify_from_search" value="Job: identify_from_search&lt;br&gt;Description: Takes its best guess based on the results and infobox alone, no scraping.&lt;br&gt;Summary: LLM brand-name resolver that uses only search-result JSON." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1180" y="500" width="300" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="get_or_create_entity_job" value="Job: get_or_create_entity_job&lt;br&gt;Description: Gets or creates an entity from Weaviate.&lt;br&gt;Summary: Progressive entity resolver: exact/alias/fuzzy/deep-search lookup, optional LLM validation, then create if needed." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="80" y="520" width="320" height="120" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="compare_entities" value="Job: compare_entities&lt;br&gt;Description: Gives a confidence score as to whether or not two entities are the same.&lt;br&gt;Summary: Strict LLM equivalence check for a single fuzzy DB match." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="20" y="690" width="220" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="get_most_likely_entity_from_llm_callback" value="Job: get_most_likely_entity_from_llm_callback&lt;br&gt;Description: Finds the most likely entity in a list given a name and context.&lt;br&gt;Summary: LLM candidate selector used during deep entity search." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="260" y="680" width="300" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="identify_company_from_name_multi" value="Job: identify_company_from_name_multi&lt;br&gt;Description: Identify a company using name + optional context by gathering evidence then synthesizing a profile.&lt;br&gt;Summary: Multi-step identification pipeline used before recursive owner search when `last_identification` is missing." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="610" y="680" width="360" height="130" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="identify_company_gather_evidence" value="Job: identify_company_gather_evidence&lt;br&gt;Description: Web-search and gather evidence snippets/URLs to disambiguate a company name.&lt;br&gt;Summary: Collects grounded evidence, candidate names, and candidate websites." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="430" y="860" width="280" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="identify_company_synthesize_identity" value="Job: identify_company_synthesize_identity&lt;br&gt;Description: Turn gathered evidence into an identified company profile with tags, aliases, and notes.&lt;br&gt;Summary: Synthesizes the canonical/common name, aliases, tags, notes, and evidence subset." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="760" y="860" width="300" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="categorize_company" value="Job: categorize_company&lt;br&gt;Description: Determines if this company is an asset manager or not.&lt;br&gt;Summary: Classifies the identified company as capital/financial infrastructure vs real-economy producer for the `top_dog` early-out logic." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1110" y="860" width="320" height="120" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="find_owners_llm" value="Job: find_owners_llm&lt;br&gt;Description: Find owners (and optionally investors) of a company using LLM agents.&lt;br&gt;Summary: Reuses cached owner graphs when possible; otherwise launches consolidated owner discovery, resolves returned owner entities, persists evidence/relationships, and feeds discovered owners back into investigation's recursive traversal." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="520" y="1030" width="450" height="140" as="geometry"/>
+        </mxCell>
+        <mxCell id="find_common_owners" value="Job: find_common_owners&lt;br&gt;Description: Finds the common owners betwixt two companies.&lt;br&gt;Summary: DB comparison job used once both sides have seed entities and again after later traversal batches." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1050" y="1030" width="320" height="110" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="find_company_parents_and_investors_2" value="Job: find_company_parents_and_investors_2&lt;br&gt;Description: Find the parent companies and investors in a company.&lt;br&gt;Summary: Parallel fan-out aggregator for parent, investor, and shareholder discovery, then aggregate + dedupe into one owner graph." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="520" y="1220" width="430" height="130" as="geometry"/>
+        </mxCell>
+        <mxCell id="rank_companies" value="Job: rank_companies&lt;br&gt;Description: Determines the order in which to find owners of companies.&lt;br&gt;Summary: Ranks common-owner candidates by capital influence so investigation can choose a top owner or fallback order." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="1220" width="290" height="110" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="find_parent_companies" value="Job: find_parent_companies&lt;br&gt;Description: Finds the parent companies of a company.&lt;br&gt;Summary: Web-enabled LLM that looks only for explicit owner/parent/control evidence." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1390" width="280" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="find_top_investors_stacked" value="Job: find_top_investors_stacked&lt;br&gt;Description: Finds the top investors in a company.&lt;br&gt;Summary: Wrapper that gathers investor evidence, then structures the response into prioritized investor records." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="380" y="1390" width="300" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="find_top_shareholders_raw" value="Job: find_top_shareholders_raw&lt;br&gt;Description: It's fucking RAW!!!&lt;br&gt;Summary: Wrapper that gathers institutional shareholders and normalizes them into owner-style graph data." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="740" y="1390" width="300" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="aggregate_owner_results" value="Job: aggregate_owner_results&lt;br&gt;Description: Aggregates the owner/investor results into a usable shape.&lt;br&gt;Summary: Merges parent, investor, and shareholder results into one strict entities/relationships graph." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1100" y="1390" width="300" height="110" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="find_top_investors_llm" value="Job: find_top_investors_llm&lt;br&gt;Description: Finds the investors in a company.&lt;br&gt;Summary: Web-enabled LLM that gathers broad investor evidence as raw JSON text." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="330" y="1540" width="250" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="structure_top_investors" value="Job: structure_top_investors&lt;br&gt;Description: Structure the top investors response.&lt;br&gt;Summary: Normalizes a free-form investor response into cited high/low priority investor entries." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="620" y="1540" width="260" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="find_top_shareholders" value="Job: find_top_shareholders&lt;br&gt;Description: Finds the top shareholders of a company.&lt;br&gt;Summary: Web-enabled LLM that extracts up to top three institutional shareholders with citations." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="740" y="1540" width="260" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="normalize_top_shareholders_to_owners" value="Job: normalize_top_shareholders_to_owners&lt;br&gt;Description: Convers the results of a top shareholders search into a format matching the output from find owners.&lt;br&gt;Summary: Converts shareholder findings into normalized entities + relationships." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1040" y="1540" width="320" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="dedupe_entities_with_web" value="Job: dedupe_entities_with_web&lt;br&gt;Description: Canonicalizes and deduplicates entities/relationships using web verification for identity equivalence only.&lt;br&gt;Summary: Canonical-name rewrite pass that preserves relationships and removes self-loops." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1110" y="1690" width="290" height="120" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e1" value="always" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="investigation" target="echo_callback">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e2" value="unless prefetched scrape" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="investigation" target="scrape_page_callback">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e3" value="unless prefetched site data" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="investigation" target="identify_news_site">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e4" value="if site lookup misses" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="identify_news_site" target="search_callback">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e5" value="clean results then infer brand" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="search_callback" target="identify_from_search">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e6" value="after scrape" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="scrape_page_callback" target="check_for_ad">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e7" value="after scrape" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="scrape_page_callback" target="check_article_applicability">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e8" value="always" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="check_article_applicability" target="extract_article_companies">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e9" value="if &gt;1 company" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="extract_article_companies" target="select_primary_company">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e10" value="if applicable and no prefetched subject" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="check_article_applicability" target="get_or_create_entity_job">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e11" value="if entity lacks last_identification" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="identify_news_site" target="identify_company_from_name_multi">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e12" value="1 fuzzy match" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="get_or_create_entity_job" target="compare_entities">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e13" value="deep search candidates exist" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="get_or_create_entity_job" target="get_most_likely_entity_from_llm_callback">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e14" value="always" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="identify_company_from_name_multi" target="identify_company_gather_evidence">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e15" value="after gather" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="identify_company_gather_evidence" target="identify_company_synthesize_identity">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e16" value="after synthesize" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="identify_company_synthesize_identity" target="categorize_company">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e17" value="continue unless top_dog early-out" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="categorize_company" target="find_owners_llm">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e18" value="subject root after resolution" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="get_or_create_entity_job" target="find_owners_llm">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e19" value="news-site root if already identified" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="identify_news_site" target="find_owners_llm">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e20" value="optional target resolve + one per returned owner" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="find_owners_llm" target="get_or_create_entity_job">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e21" value="if owner cache not complete" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="find_owners_llm" target="find_company_parents_and_investors_2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e22" value="always" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="find_company_parents_and_investors_2" target="find_parent_companies">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e23" value="always" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="find_company_parents_and_investors_2" target="find_top_investors_stacked">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e24" value="always" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="find_company_parents_and_investors_2" target="find_top_shareholders_raw">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e25" value="after 3 branch results" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="find_company_parents_and_investors_2" target="aggregate_owner_results">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e26" value="always" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="find_top_investors_stacked" target="find_top_investors_llm">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e27" value="after raw investor response" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="find_top_investors_llm" target="structure_top_investors">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e28" value="always" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="find_top_shareholders_raw" target="find_top_shareholders">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e29" value="after shareholder extraction" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="find_top_shareholders" target="normalize_top_shareholders_to_owners">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e30" value="dedupe merged graph" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="aggregate_owner_results" target="dedupe_entities_with_web">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e31" value="once seeds exist, then after batches/final exhaustion" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="investigation" target="find_common_owners">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e32" value="if common owners found" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="find_common_owners" target="rank_companies">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e33" value="recursive loop for newly discovered owners needing identification" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="find_owners_llm" target="identify_company_from_name_multi">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

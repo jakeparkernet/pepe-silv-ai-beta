@@ -268,20 +268,31 @@ async def main():
         logger.info(f"{'DRY RUN' if args.dry_run else 'Done'}. Repaired: {1 if ok else 0}")
         return
 
-    # Fetch trees that have a top_owner (not null)
+    # Fetch all records and filter in Python
     query = (
         supabase.table("ownership_trees")
         .select("id, ownership_tree, investigation_data, summary")
-        .not_.is_("investigation_data->top_owner", "null")
     )
 
     if args.limit > 0:
         query = query.limit(args.limit)
 
     result = query.execute()
-    records = result.data or []
+    all_records = result.data or []
 
-    logger.info(f"Found {len(records)} ownership_trees with top_owner set")
+    # Filter to records with top_owner set
+    records = []
+    for r in all_records:
+        inv_data = r.get("investigation_data")
+        if isinstance(inv_data, str):
+            try:
+                inv_data = json.loads(inv_data)
+            except (json.JSONDecodeError, TypeError):
+                inv_data = {}
+        if isinstance(inv_data, dict) and inv_data.get("top_owner") is not None:
+            records.append(r)
+
+    logger.info(f"Found {len(records)} ownership_trees with top_owner set (from {len(all_records)} total)")
 
     if args.dry_run:
         logger.info("DRY RUN MODE - no changes will be made")

@@ -1,0 +1,447 @@
+{
+  "root_job": "investigation",
+  "scope": "src/app Python code only",
+  "source_entry": "src/app/core/jobs/jobs/investigation_job.py",
+  "nodes": [
+    {
+      "id": "investigation",
+      "job_name": "investigation",
+      "label": "Investigation",
+      "description": "Investigates a news article",
+      "summary": "Top-level orchestrator. It kicks off scrape and news-site identification, checks ad/applicability status, resolves the article subject, alternates breadth-first owner discovery on the news-site and article-subject sides, reruns common-owner checks, ranks common owners, and persists the final result.",
+      "file": "src/app/core/jobs/jobs/investigation_job.py"
+    },
+    {
+      "id": "echo_callback",
+      "job_name": "echo_callback",
+      "label": "Echo",
+      "description": "Echoes the input",
+      "summary": "Debug callback used near startup. It verifies callback plumbing but does not affect the ownership investigation path.",
+      "file": "src/app/core/jobs/jobs/echo_callback_job.py"
+    },
+    {
+      "id": "scrape_page_callback",
+      "job_name": "scrape_page_callback",
+      "label": "Scrape",
+      "description": "Scrapes a web page",
+      "summary": "Edge-backed scraper wrapper. It returns the raw scrape payload unchanged so investigation can inspect raw HTML and extracted article text.",
+      "file": "src/app/core/jobs/jobs/scrape_callback_job.py"
+    },
+    {
+      "id": "identify_news_site",
+      "job_name": "identify_news_site",
+      "label": "Identify News Site",
+      "description": "Identifies a news site based on a url",
+      "summary": "Resolves the publisher org for the article URL. It first checks the DB by domain, then falls back to search plus LLM site-name extraction, and finally persists a NewsSite-to-Entity link.",
+      "file": "src/app/core/jobs/jobs/identify_news_site.py"
+    },
+    {
+      "id": "search_callback",
+      "job_name": "search_callback",
+      "label": "Search",
+      "description": "Searches Brave",
+      "summary": "Brave search callback wrapper. It returns raw search results for downstream cleanup and LLM interpretation.",
+      "file": "src/app/core/jobs/jobs/search_callback_job.py"
+    },
+    {
+      "id": "identify_from_search",
+      "job_name": "identify_from_search",
+      "label": "Identify a company from search results",
+      "description": "Takes its best guess based on the results and infobox alone, no scraping.",
+      "summary": "LLM-only site-brand resolver. It uses only the provided search-result JSON to choose a public-facing brand name, tags, and evidence for the domain.",
+      "file": "src/app/core/jobs/jobs/identify_from_search.py"
+    },
+    {
+      "id": "check_for_ad",
+      "job_name": "check_for_ad",
+      "label": "Check For Ad",
+      "description": "Conservative detector for commerce intent, affiliate links, and whether affiliate/commission disclosure is explicit enough to trust.",
+      "summary": "Runs a heuristic prepass over raw HTML and only escalates to an LLM review when the page contains meaningful commerce or disclosure signals. Investigation records its output but does not recurse through subjobs from here.",
+      "file": "src/app/core/jobs/jobs/check_for_ad.py"
+    },
+    {
+      "id": "check_article_applicability",
+      "job_name": "check_article_applicability",
+      "label": "Check Article Applicability",
+      "description": "Checks if the article is about a specific product or company.",
+      "summary": "Determines whether the scraped article is specific enough to investigate. It extracts company mentions, short-circuits on zero or one result, and chooses a primary company when multiple candidates appear.",
+      "file": "src/app/core/jobs/jobs/check_article_applicability.py"
+    },
+    {
+      "id": "extract_article_companies",
+      "job_name": "extract_article_companies",
+      "label": "Extract Article Companies",
+      "description": "Extracts all companies mentioned in an article.",
+      "summary": "LLM extraction pass over article markdown. It returns every company mention it can ground in the body text, with prominence and short contextual role text.",
+      "file": "src/app/core/jobs/jobs/extract_article_companies.py"
+    },
+    {
+      "id": "select_primary_company",
+      "job_name": "select_primary_company",
+      "label": "Select Primary Company",
+      "description": "Selects the most prominent company from a list of candidates.",
+      "summary": "LLM tie-breaker for multi-company articles. It picks a single central company from the extracted candidate list and falls back to the first candidate when parsing fails.",
+      "file": "src/app/core/jobs/jobs/select_primary_company.py"
+    },
+    {
+      "id": "get_or_create_entity_job",
+      "job_name": "get_or_create_entity_job",
+      "label": "Get Or Create Entity",
+      "description": "Gets or creates an entity from Weaviate.",
+      "summary": "Progressive entity resolution wrapper. It tries exact name, aliases, and fuzzy matches first, optionally validates a single fuzzy match, then runs a deeper candidate search and LLM selection before creating a new entity if nothing qualifies.",
+      "file": "src/app/core/jobs/jobs/get_or_create_entity_job.py"
+    },
+    {
+      "id": "compare_entities",
+      "job_name": "compare_entities",
+      "label": "Compare Entities",
+      "description": "Gives a confidence score as to whether or not two entities are the same.",
+      "summary": "Strict LLM equivalence check used to validate a single fuzzy DB match before reusing it.",
+      "file": "src/app/core/jobs/jobs/compare_entities.py"
+    },
+    {
+      "id": "get_most_likely_entity_from_llm_callback",
+      "job_name": "get_most_likely_entity_from_llm_callback",
+      "label": "Get Most Likely Entity From LLM",
+      "description": "Finds the most likely entity in a list given a name and context.",
+      "summary": "LLM candidate selector used during deep entity search. It ranks candidate DB entities and returns the best one only if confidence exceeds a configured threshold.",
+      "file": "src/app/core/jobs/jobs/get_most_likely_entity_from_llm_callback.py"
+    },
+    {
+      "id": "identify_company_from_name_multi",
+      "job_name": "identify_company_from_name_multi",
+      "label": "Identify Company From Name (Multi-step)",
+      "description": "Identify a company using name + optional context by gathering evidence then synthesizing a profile.",
+      "summary": "Three-step company identification pipeline. Investigation uses it before owner search whenever an entity lacks `last_identification` metadata.",
+      "file": "src/app/core/jobs/jobs/identify_company_from_name_multi.py"
+    },
+    {
+      "id": "identify_company_gather_evidence",
+      "job_name": "identify_company_gather_evidence",
+      "label": "Identify Company - Gather Evidence",
+      "description": "Web-search and gather evidence snippets/URLs to disambiguate a company name.",
+      "summary": "Web-enabled evidence gathering pass that collects short grounded excerpts, candidate names, websites, and notes for company disambiguation.",
+      "file": "src/app/core/jobs/jobs/identify_company_gather_evidence.py"
+    },
+    {
+      "id": "identify_company_synthesize_identity",
+      "job_name": "identify_company_synthesize_identity",
+      "label": "Identify Company - Synthesize Identity",
+      "description": "Turn gathered evidence into an identified company profile with tags, aliases, and notes.",
+      "summary": "LLM synthesis pass that converts gathered evidence into a canonical/common company name, aliases, tags, notes, and a supporting evidence subset.",
+      "file": "src/app/core/jobs/jobs/identify_company_synthesize_identity.py"
+    },
+    {
+      "id": "categorize_company",
+      "job_name": "categorize_company",
+      "label": "Identify Company - Categorize",
+      "description": "Determines if this company is an asset manager or not.",
+      "summary": "Binary classifier that separates capital/financial infrastructure companies from real-economy producers. Investigation uses its output to set the entity `top_dog` early-out behavior.",
+      "file": "src/app/core/jobs/jobs/categorize_company.py"
+    },
+    {
+      "id": "find_owners_llm",
+      "job_name": "find_owners_llm",
+      "label": "Find Owners - LLM",
+      "description": "Find owners (and optionally investors) of a company using LLM agents.",
+      "summary": "Single-entity owner discovery wrapper. It reuses cached owner relationships when available, otherwise launches consolidated parent/investor/shareholder discovery, resolves the returned owner entities, persists evidence and relationships, and hands discovered owners back to investigation for recursive traversal.",
+      "file": "src/app/core/jobs/jobs/find_owners_llm.py"
+    },
+    {
+      "id": "find_company_parents_and_investors_2",
+      "job_name": "find_company_parents_and_investors_2",
+      "label": "Find Company Parents and Investors 2",
+      "description": "Find the parent companies and investors in a company.",
+      "summary": "Parallel fan-out aggregator for owner discovery. It runs parent, investor, and shareholder discovery, aggregates them into a graph, dedupes equivalent names, and returns the final graph used by `find_owners_llm`.",
+      "file": "src/app/core/jobs/jobs/find_company_parents_and_investors_2.py"
+    },
+    {
+      "id": "find_parent_companies",
+      "job_name": "find_parent_companies",
+      "label": "Find Parent Companies",
+      "description": "Finds the parent companies of a company.",
+      "summary": "Web-enabled LLM that looks only for explicit owner/parent/control evidence and returns a grounded parent-company decision.",
+      "file": "src/app/core/jobs/jobs/find_parent_companies.py"
+    },
+    {
+      "id": "find_top_investors_stacked",
+      "job_name": "find_top_investors_stacked",
+      "label": "Find Top Investors Stacked",
+      "description": "Finds the top investors in a company.",
+      "summary": "Two-step investor wrapper. It first gathers investor evidence, then restructures the response into prioritized investor records.",
+      "file": "src/app/core/jobs/jobs/find_top_investors_stacked.py"
+    },
+    {
+      "id": "find_top_investors_llm",
+      "job_name": "find_top_investors_llm",
+      "label": "Find Investors",
+      "description": "Finds the investors in a company.",
+      "summary": "Web-enabled LLM pass that gathers broad investor evidence for a company and returns raw JSON text for downstream structuring.",
+      "file": "src/app/core/jobs/jobs/find_top_investors_llm.py"
+    },
+    {
+      "id": "structure_top_investors",
+      "job_name": "structure_top_investors",
+      "label": "Structure Top Investors",
+      "description": "Structure the top investors response.",
+      "summary": "LLM normalization pass that converts a free-form investor response into cited high/low priority investor entries.",
+      "file": "src/app/core/jobs/jobs/structure_top_investors.py"
+    },
+    {
+      "id": "find_top_shareholders_raw",
+      "job_name": "find_top_shareholders_raw",
+      "label": "Find Top Shareholders Raw",
+      "description": "It's fucking RAW!!!",
+      "summary": "Shareholder-discovery wrapper. It gathers top institutional shareholders and then normalizes them into the same entity/relationship shape used by owner discovery.",
+      "file": "src/app/core/jobs/jobs/find_top_shareholders_raw.py"
+    },
+    {
+      "id": "find_top_shareholders",
+      "job_name": "find_top_shareholders",
+      "label": "Find Top Shareholders",
+      "description": "Finds the top shareholders of a company.",
+      "summary": "Web-enabled LLM pass that extracts up to the top three institutional shareholders for a company, with grounded quotes and sources.",
+      "file": "src/app/core/jobs/jobs/find_top_shareholders.py"
+    },
+    {
+      "id": "normalize_top_shareholders_to_owners",
+      "job_name": "normalize_top_shareholders_to_owners",
+      "label": "Normalize Top Shareholders Results",
+      "description": "Convers the results of a top shareholders search into a format matching the output from find owners.",
+      "summary": "LLM schema transformer that converts raw shareholder findings into normalized `entities` and `relationships` records.",
+      "file": "src/app/core/jobs/jobs/normalize_top_shareholders_to_owners.py"
+    },
+    {
+      "id": "aggregate_owner_results",
+      "job_name": "aggregate_owner_results",
+      "label": "Aggregate Owner Results",
+      "description": "Aggregates the owner/investor results into a usable shape.",
+      "summary": "LLM merge pass that combines parent, investor, and shareholder outputs into one strict graph while correcting whether investor relationships belong to the target company or its parent.",
+      "file": "src/app/core/jobs/jobs/aggregate_owner_results.py"
+    },
+    {
+      "id": "dedupe_entities_with_web",
+      "job_name": "dedupe_entities_with_web",
+      "label": "Dedupe Entities With Web",
+      "description": "Canonicalizes and deduplicates entities/relationships using web verification for identity equivalence only.",
+      "summary": "Web-verified identity dedupe pass. It rewrites graph entity names to canonical forms, preserves relationships, and removes self-loops caused by merges.",
+      "file": "src/app/core/jobs/jobs/dedupe_entities_with_web.py"
+    },
+    {
+      "id": "find_common_owners",
+      "job_name": "find_common_owners",
+      "label": "Find Common Owners",
+      "description": "Finds the common owners betwixt two companies.",
+      "summary": "Database comparison job used by investigation after both sides have seed entities and after later breadth-first batches. It returns common owners plus ownership-tree context for both sides.",
+      "file": "src/app/core/jobs/jobs/find_common_owners.py"
+    },
+    {
+      "id": "rank_companies",
+      "job_name": "rank_companies",
+      "label": "Rank Companies",
+      "description": "Determines the order in which to find owners of companies.",
+      "summary": "Web-enabled LLM ranking pass. Investigation uses it to rank common-owner candidates by capital influence and pick a final top owner or fallback order.",
+      "file": "src/app/core/jobs/jobs/rank_companies.py"
+    }
+  ],
+  "edges": [
+    {
+      "from": "investigation",
+      "to": "echo_callback",
+      "relationship": "creates",
+      "condition": "always near startup as an echo test"
+    },
+    {
+      "from": "investigation",
+      "to": "scrape_page_callback",
+      "relationship": "creates",
+      "condition": "unless prefetched scrape output is supplied"
+    },
+    {
+      "from": "investigation",
+      "to": "identify_news_site",
+      "relationship": "creates",
+      "condition": "unless prefetched site data is supplied"
+    },
+    {
+      "from": "identify_news_site",
+      "to": "search_callback",
+      "relationship": "creates",
+      "condition": "only when the site DB lookup misses or returns no linked entity"
+    },
+    {
+      "from": "search_callback",
+      "to": "identify_from_search",
+      "relationship": "continues_with",
+      "condition": "search results are cleaned, then the domain brand is inferred"
+    },
+    {
+      "from": "scrape_page_callback",
+      "to": "check_for_ad",
+      "relationship": "continues_with",
+      "condition": "always after article scrape completes"
+    },
+    {
+      "from": "scrape_page_callback",
+      "to": "check_article_applicability",
+      "relationship": "continues_with",
+      "condition": "unless prefetched applicability output is supplied"
+    },
+    {
+      "from": "check_article_applicability",
+      "to": "extract_article_companies",
+      "relationship": "creates",
+      "condition": "always"
+    },
+    {
+      "from": "extract_article_companies",
+      "to": "select_primary_company",
+      "relationship": "continues_with",
+      "condition": "only when more than one company is extracted"
+    },
+    {
+      "from": "check_article_applicability",
+      "to": "get_or_create_entity_job",
+      "relationship": "continues_with",
+      "condition": "when the article is applicable, a company is identified, and no prefetched subject entity is supplied"
+    },
+    {
+      "from": "identify_news_site",
+      "to": "identify_company_from_name_multi",
+      "relationship": "continues_with",
+      "condition": "for the news-site seed or discovered owners when the entity lacks `last_identification` metadata"
+    },
+    {
+      "from": "get_or_create_entity_job",
+      "to": "compare_entities",
+      "relationship": "creates",
+      "condition": "only when there is exactly one fuzzy `get_entities_like` candidate and LLM validation is enabled"
+    },
+    {
+      "from": "get_or_create_entity_job",
+      "to": "get_most_likely_entity_from_llm_callback",
+      "relationship": "creates",
+      "condition": "only during deep search when there are candidate entities to rank"
+    },
+    {
+      "from": "identify_company_from_name_multi",
+      "to": "identify_company_gather_evidence",
+      "relationship": "creates",
+      "condition": "always"
+    },
+    {
+      "from": "identify_company_gather_evidence",
+      "to": "identify_company_synthesize_identity",
+      "relationship": "continues_with",
+      "condition": "always after evidence gathering"
+    },
+    {
+      "from": "identify_company_synthesize_identity",
+      "to": "categorize_company",
+      "relationship": "continues_with",
+      "condition": "always after identity synthesis"
+    },
+    {
+      "from": "categorize_company",
+      "to": "find_owners_llm",
+      "relationship": "continues_with",
+      "condition": "for recursive owner traversal unless investigation takes the `top_dog` early-out"
+    },
+    {
+      "from": "identify_news_site",
+      "to": "find_owners_llm",
+      "relationship": "continues_with",
+      "condition": "for the news-site seed when the entity is already identified"
+    },
+    {
+      "from": "get_or_create_entity_job",
+      "to": "find_owners_llm",
+      "relationship": "continues_with",
+      "condition": "for the article-subject seed after entity resolution"
+    },
+    {
+      "from": "find_owners_llm",
+      "to": "get_or_create_entity_job",
+      "relationship": "creates",
+      "condition": "optionally to resolve the target entity, and later once per returned owner entity in the aggregated graph"
+    },
+    {
+      "from": "find_owners_llm",
+      "to": "find_company_parents_and_investors_2",
+      "relationship": "creates",
+      "condition": "when cached owner-search metadata is not already complete"
+    },
+    {
+      "from": "find_company_parents_and_investors_2",
+      "to": "find_parent_companies",
+      "relationship": "creates",
+      "condition": "always"
+    },
+    {
+      "from": "find_company_parents_and_investors_2",
+      "to": "find_top_investors_stacked",
+      "relationship": "creates",
+      "condition": "always"
+    },
+    {
+      "from": "find_company_parents_and_investors_2",
+      "to": "find_top_shareholders_raw",
+      "relationship": "creates",
+      "condition": "always"
+    },
+    {
+      "from": "find_top_investors_stacked",
+      "to": "find_top_investors_llm",
+      "relationship": "creates",
+      "condition": "always"
+    },
+    {
+      "from": "find_top_investors_llm",
+      "to": "structure_top_investors",
+      "relationship": "continues_with",
+      "condition": "always after the raw investor response arrives"
+    },
+    {
+      "from": "find_top_shareholders_raw",
+      "to": "find_top_shareholders",
+      "relationship": "creates",
+      "condition": "always"
+    },
+    {
+      "from": "find_top_shareholders",
+      "to": "normalize_top_shareholders_to_owners",
+      "relationship": "continues_with",
+      "condition": "always after shareholder extraction"
+    },
+    {
+      "from": "find_company_parents_and_investors_2",
+      "to": "aggregate_owner_results",
+      "relationship": "creates",
+      "condition": "after parent, investor, and shareholder branches all finish"
+    },
+    {
+      "from": "aggregate_owner_results",
+      "to": "dedupe_entities_with_web",
+      "relationship": "continues_with",
+      "condition": "always after aggregate graph creation"
+    },
+    {
+      "from": "investigation",
+      "to": "find_common_owners",
+      "relationship": "creates",
+      "condition": "once both seed entities exist, then again after batches and once more as a final exhaustion check when needed"
+    },
+    {
+      "from": "find_common_owners",
+      "to": "rank_companies",
+      "relationship": "continues_with",
+      "condition": "only when common owners are found"
+    },
+    {
+      "from": "find_owners_llm",
+      "to": "identify_company_from_name_multi",
+      "relationship": "recursive_feedback",
+      "condition": "investigation requeues newly discovered owner entities here if they lack identification metadata"
+    }
+  ]
+}
