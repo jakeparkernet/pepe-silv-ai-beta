@@ -5,7 +5,7 @@
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
         <mxCell id="section_intake" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1;fontSize=16;fontColor=#666666;" value="Intake / Setup" vertex="1">
-          <mxGeometry height="24" width="2130" x="-280" y="210" as="geometry" />
+          <mxGeometry height="24" width="2130" x="350" y="40" as="geometry" />
         </mxCell>
         <mxCell id="section_article" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1;fontSize=16;fontColor=#666666;" value="Article Checks + Subject Entity Resolution" vertex="1">
           <mxGeometry height="24" width="1500" x="110" y="360" as="geometry" />
@@ -38,7 +38,7 @@
           <mxGeometry height="135" width="360" x="700" y="540" as="geometry" />
         </mxCell>
         <mxCell id="search_callback" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;" value="Job: search_callback&lt;br&gt;Description: Searches Brave&lt;br&gt;Summary: Raw Brave search callback wrapper used by site identification." vertex="1">
-          <mxGeometry height="95" width="260" x="1480" y="265" as="geometry" />
+          <mxGeometry height="95" width="260" x="1330" y="420" as="geometry" />
         </mxCell>
         <mxCell id="extract_article_companies" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" value="Job: extract_article_companies&lt;br&gt;Description: Extracts all companies mentioned in an article.&lt;br&gt;Summary: LLM extraction pass that returns grounded company mentions with prominence and context." vertex="1">
           <mxGeometry height="115" width="320" x="780" y="740" as="geometry" />
@@ -47,7 +47,7 @@
           <mxGeometry height="115" width="320" x="350" y="690" as="geometry" />
         </mxCell>
         <mxCell id="identify_from_search" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" value="Job: identify_from_search&lt;br&gt;Description: Takes its best guess based on the results and infobox alone, no scraping.&lt;br&gt;Summary: LLM brand-name resolver that uses only search-result JSON." vertex="1">
-          <mxGeometry height="120" width="320" x="1240" y="430" as="geometry" />
+          <mxGeometry height="120" width="320" x="1230" y="580" as="geometry" />
         </mxCell>
         <mxCell id="get_or_create_entity_job" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" value="Job: get_or_create_entity_job&lt;br&gt;Description: Gets or creates an entity from Weaviate.&lt;br&gt;Summary: Progressive entity resolver: exact/alias/fuzzy/deep-search lookup, optional LLM validation, then create if needed." vertex="1">
           <mxGeometry height="125" width="350" x="50" y="835" as="geometry" />
@@ -56,7 +56,7 @@
           <mxGeometry height="105" width="250" x="-170" y="1210" as="geometry" />
         </mxCell>
         <mxCell id="get_most_likely_entity_from_llm_callback" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" value="Job: get_most_likely_entity_from_llm_callback&lt;br&gt;Description: Finds the most likely entity in a list given a name and context.&lt;br&gt;Summary: LLM candidate selector used during deep entity search." vertex="1">
-          <mxGeometry height="125" width="330" x="420" y="1230" as="geometry" />
+          <mxGeometry height="125" width="330" x="460" y="1200" as="geometry" />
         </mxCell>
         <mxCell id="identify_company_from_name_multi" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" value="Job: identify_company_from_name_multi&lt;br&gt;Description: Identify a company using name + optional context by gathering evidence then synthesizing a profile.&lt;br&gt;Summary: Multi-step identification pipeline used before recursive owner search when `last_identification` is missing." vertex="1">
           <mxGeometry height="135" width="420" x="1500" y="720" as="geometry" />
@@ -71,43 +71,43 @@
           <mxGeometry height="125" width="350" x="1200" y="1330" as="geometry" />
         </mxCell>
         <mxCell id="find_owners_llm" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" value="Job: find_owners_llm&lt;br&gt;Description: Find owners (and optionally investors) of a company using LLM agents.&lt;br&gt;Summary: Reuses cached owner graphs when possible; otherwise launches consolidated owner discovery, resolves returned owner entities, persists evidence/relationships, and feeds discovered owners back into investigation&#39;s recursive traversal." vertex="1">
-          <mxGeometry height="145" width="500" x="800" y="1500" as="geometry" />
+          <mxGeometry height="145" width="500" x="770" y="1555" as="geometry" />
         </mxCell>
         <mxCell id="find_common_owners" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" value="Job: find_common_owners&lt;br&gt;Description: Finds the common owners betwixt two companies.&lt;br&gt;Summary: DB comparison job used once both sides have seed entities and again after later traversal batches." vertex="1">
           <mxGeometry height="115" width="350" x="1840" y="1440" as="geometry" />
         </mxCell>
         <mxCell id="find_company_parents_and_investors_2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" value="Job: find_company_parents_and_investors_2&lt;br&gt;Description: Find the parent companies and investors in a company.&lt;br&gt;Summary: Parallel fan-out aggregator for parent, investor, and shareholder discovery, then aggregate + dedupe into one owner graph." vertex="1">
-          <mxGeometry height="135" width="480" x="780" y="1700" as="geometry" />
+          <mxGeometry height="135" width="480" x="730" y="1790" as="geometry" />
         </mxCell>
         <mxCell id="rank_companies" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" value="Job: rank_companies&lt;br&gt;Description: Determines the order in which to find owners of companies.&lt;br&gt;Summary: Ranks common-owner candidates by capital influence so investigation can choose a top owner or fallback order." vertex="1">
           <mxGeometry height="115" width="320" x="1870" y="1640" as="geometry" />
         </mxCell>
         <mxCell id="find_parent_companies" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" value="Job: find_parent_companies&lt;br&gt;Description: Finds the parent companies of a company.&lt;br&gt;Summary: Web-enabled LLM that looks only for explicit owner/parent/control evidence." vertex="1">
-          <mxGeometry height="115" width="310" x="120" y="1960" as="geometry" />
+          <mxGeometry height="115" width="310" x="120" y="2000" as="geometry" />
         </mxCell>
         <mxCell id="find_top_investors_stacked" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" value="Job: find_top_investors_stacked&lt;br&gt;Description: Finds the top investors in a company.&lt;br&gt;Summary: Wrapper that gathers investor evidence, then structures the response into prioritized investor records." vertex="1">
-          <mxGeometry height="115" width="330" x="540" y="1960" as="geometry" />
+          <mxGeometry height="115" width="330" x="540" y="2010" as="geometry" />
         </mxCell>
         <mxCell id="find_top_shareholders_raw" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" value="Job: find_top_shareholders_raw&lt;br&gt;Description: It&#39;s fucking RAW!!!&lt;br&gt;Summary: Wrapper that gathers institutional shareholders and normalizes them into owner-style graph data." vertex="1">
-          <mxGeometry height="115" width="330" x="960" y="1960" as="geometry" />
+          <mxGeometry height="115" width="330" x="920" y="2030" as="geometry" />
         </mxCell>
         <mxCell id="aggregate_owner_results" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" value="Job: aggregate_owner_results&lt;br&gt;Description: Aggregates the owner/investor results into a usable shape.&lt;br&gt;Summary: Merges parent, investor, and shareholder results into one strict entities/relationships graph." vertex="1">
-          <mxGeometry height="115" width="340" x="1640" y="1950" as="geometry" />
+          <mxGeometry height="115" width="340" x="1650" y="2040" as="geometry" />
         </mxCell>
         <mxCell id="find_top_investors_llm" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" value="Job: find_top_investors_llm&lt;br&gt;Description: Finds the investors in a company.&lt;br&gt;Summary: Web-enabled LLM that gathers broad investor evidence as raw JSON text." vertex="1">
-          <mxGeometry height="115" width="290" x="500" y="2180" as="geometry" />
+          <mxGeometry height="115" width="290" x="490" y="2260" as="geometry" />
         </mxCell>
         <mxCell id="structure_top_investors" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" value="Job: structure_top_investors&lt;br&gt;Description: Structure the top investors response.&lt;br&gt;Summary: Normalizes a free-form investor response into cited high/low priority investor entries." vertex="1">
-          <mxGeometry height="115" width="300" x="600" y="2460" as="geometry" />
+          <mxGeometry height="115" width="300" x="600" y="2540" as="geometry" />
         </mxCell>
         <mxCell id="find_top_shareholders" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" value="Job: find_top_shareholders&lt;br&gt;Description: Finds the top shareholders of a company.&lt;br&gt;Summary: Web-enabled LLM that extracts up to top three institutional shareholders with citations." vertex="1">
-          <mxGeometry height="115" width="300" x="1020" y="2440" as="geometry" />
+          <mxGeometry height="115" width="300" x="1040" y="2520" as="geometry" />
         </mxCell>
         <mxCell id="normalize_top_shareholders_to_owners" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" value="Job: normalize_top_shareholders_to_owners&lt;br&gt;Description: Convers the results of a top shareholders search into a format matching the output from find owners.&lt;br&gt;Summary: Converts shareholder findings into normalized entities + relationships." vertex="1">
-          <mxGeometry height="125" width="360" x="1320" y="2180" as="geometry" />
+          <mxGeometry height="125" width="360" x="1320" y="2240" as="geometry" />
         </mxCell>
         <mxCell id="dedupe_entities_with_web" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" value="Job: dedupe_entities_with_web&lt;br&gt;Description: Canonicalizes and deduplicates entities/relationships using web verification for identity equivalence only.&lt;br&gt;Summary: Canonical-name rewrite pass that preserves relationships and removes self-loops." vertex="1">
-          <mxGeometry height="125" width="330" x="1650" y="2430" as="geometry" />
+          <mxGeometry height="125" width="330" x="1660" y="2490" as="geometry" />
         </mxCell>
         <mxCell id="e1" edge="1" parent="1" source="investigation" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=11;labelBackgroundColor=#ffffff;" target="echo_callback" value="always">
           <mxGeometry relative="1" as="geometry" />
