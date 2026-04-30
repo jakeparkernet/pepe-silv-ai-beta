@@ -1,4 +1,0 @@
-class ScrapeResultModel {
-}
-
-export { ScrapeResultModel };
