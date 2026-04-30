@@ -1,8 +1,12 @@
 // AssetPool.js
 // ES6, no external libs. Assumes global THREE is available.
 import * as THREE from "three";
-import { applyTextureProperties } from "./ThreeJSUtils.js"
-import { MeshInstance } from "./MeshInstance.js";
+// import { applyTextureProperties } from "./ThreeJSUtils.js"
+// import { MeshInstance } from "./MeshInstance.js";
+// 
+const appModules = window[`apps_${performance.timeOrigin}`].modules;
+const { applyTextureProperties } = appModules.utils.ThreeJSUtils;
+const { MeshInstance } = appModules.utils.MeshInstance;
 
 const _assetPoolTextureLoader = new THREE.TextureLoader();
 

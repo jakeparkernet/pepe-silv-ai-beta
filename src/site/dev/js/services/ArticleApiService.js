@@ -1,5 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { ARTICLE_API_CONFIG } from "./articleApiConfig.js";
+// import { ARTICLE_API_CONFIG } from "./articleApiConfig.js";
+// 
+const appModules = window[`apps_${performance.timeOrigin}`].modules;
+const { ARTICLE_API_CONFIG } = appModules.services.articleApiConfig;
 
 class ArticleApiService {
     constructor(options = {}) {

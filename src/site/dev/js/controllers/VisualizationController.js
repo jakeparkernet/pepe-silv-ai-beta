@@ -5,11 +5,17 @@ import { SSAARenderPass } from "three/addons/postprocessing/SSAARenderPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { LUTPass } from "three/addons/postprocessing/LUTPass.js";
 import { TAARenderPass } from "three/addons/postprocessing/TAARenderPass.js";
-
-import { CameraController } from "../rendering/CameraController.js";
-import { InputService } from "../services/InputService.js";
-import { ArticleStatus } from "../views/ArticleStatus.js";
-import { ArticleStatusD3 } from "../components/ArticleStatusD3.js";
+// 
+// import { CameraController } from "../rendering/CameraController.js";
+// import { InputService } from "../services/InputService.js";
+// import { ArticleStatus } from "../views/ArticleStatus.js";
+// import { ArticleStatusD3 } from "../components/ArticleStatusD3.js";
+// 
+const appModules = window[`apps_${performance.timeOrigin}`].modules;
+const { CameraController } = appModules.rendering.CameraController;
+const { InputService } = appModules.services.InputService;
+const { ArticleStatus } = appModules.views.ArticleStatus;
+const { ArticleStatusD3 } = appModules.components.ArticleStatusD3;
 
 const MAIN_RENDER_LAYER = 0;
 const SDF_TEXT_RENDER_LAYER = 1;

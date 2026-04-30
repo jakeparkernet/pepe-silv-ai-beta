@@ -32,7 +32,8 @@ export class ChromeController {
         historyRef = window.history,
         locationRef = window.location,
         randomBetween = defaultRandomBetween,
-        visualModeStorageKey = DEFAULT_VISUAL_MODE_STORAGE_KEY
+        visualModeStorageKey = DEFAULT_VISUAL_MODE_STORAGE_KEY,
+        skipInitialVisualizationMode = false
     } = {}) {
         this.windowRef = windowRef;
         this.documentRef = documentRef;
@@ -42,6 +43,7 @@ export class ChromeController {
         this.locationRef = locationRef;
         this.randomBetween = randomBetween;
         this.visualModeStorageKey = visualModeStorageKey;
+        this.skipInitialVisualizationMode = skipInitialVisualizationMode;
 
         this.timers = {
             requestAnimationFrame: timers.requestAnimationFrame ?? windowRef.requestAnimationFrame?.bind(windowRef),
@@ -104,7 +106,9 @@ export class ChromeController {
         this.initializeNewSearch();
         this.initializeShareButton();
         this.initializeSupportCta();
-        this.applyInitialVisualizationMode();
+        if (!this.skipInitialVisualizationMode) {
+            this.applyInitialVisualizationMode();
+        }
         this._initialized = true;
     }
 

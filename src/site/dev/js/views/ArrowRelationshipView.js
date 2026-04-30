@@ -1,7 +1,12 @@
 import * as THREE from "three";
-import { View } from "./View.js";
-import { Arrow } from "../components/Arrow.js";
-import { TapeLabel } from "../components/TapeLabel.js";
+// import { View } from "./View.js";
+// import { Arrow } from "../components/Arrow.js";
+// import { TapeLabel } from "../components/TapeLabel.js";
+// 
+const appModules = window[`apps_${performance.timeOrigin}`].modules;
+const { View } = appModules.views.View;
+const { Arrow } = appModules.components.Arrow;
+const { TapeLabel } = appModules.components.TapeLabel;
 
 const WORLD_FORWARD = new THREE.Vector3(0, 0, 1);
 const WORLD_UP = new THREE.Vector3(0, 1, 0);

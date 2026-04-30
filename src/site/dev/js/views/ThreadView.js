@@ -1,7 +1,12 @@
-import { EdgeView } from "./EdgeView.js";
+// import { EdgeView } from "./EdgeView.js";
 import * as THREE from "three";
-import { createPooledMesh } from "../utils/AssetPool.js";
-import { InputService } from "../services/InputService.js";
+// import { createPooledMesh } from "../utils/AssetPool.js";
+// import { InputService } from "../services/InputService.js";
+// 
+const appModules = window[`apps_${performance.timeOrigin}`].modules;
+const { EdgeView } = appModules.views.EdgeView;
+const { createPooledMesh } = appModules.utils.AssetPool;
+const { InputService } = appModules.services.InputService;
 
 const THREAD_X_AXIS = new THREE.Vector3(1, 0, 0);
 const THREAD_MATERIAL_CONFIG = {

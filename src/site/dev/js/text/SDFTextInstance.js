@@ -1,5 +1,8 @@
 import * as THREE from "three";
-import { TextGeometryBuilder } from "./TextGeometryBuilder.js";
+// import { TextGeometryBuilder } from "./TextGeometryBuilder.js";
+// 
+const appModules = window[`apps_${performance.timeOrigin}`].modules;
+const { TextGeometryBuilder } = appModules.text.TextGeometryBuilder;
 
 export class SDFTextInstance {
     constructor({

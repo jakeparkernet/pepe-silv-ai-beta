@@ -1,8 +1,14 @@
-import { View } from "./View.js";
+// import { View } from "./View.js";
 import * as THREE from "three";
-import { ViewPool } from "../utils/ViewPool.js";
-import { InputService } from "../services/InputService.js";
-import { getPointOnBoxFromCenter } from "../utils/pointUtils.js";
+// import { ViewPool } from "../utils/ViewPool.js";
+// import { InputService } from "../services/InputService.js";
+// import { getPointOnBoxFromCenter } from "../utils/pointUtils.js";
+// 
+const appModules = window[`apps_${performance.timeOrigin}`].modules;
+const { View } = appModules.views.View;
+const { ViewPool } = appModules.utils.ViewPool;
+const { InputService } = appModules.services.InputService;
+const { getPointOnBoxFromCenter } = appModules.utils.pointUtils;
 
 class OwnerTreeView extends View {
 

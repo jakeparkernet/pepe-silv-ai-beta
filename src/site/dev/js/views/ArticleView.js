@@ -1,11 +1,20 @@
-import { View } from "./View.js";
-import { ViewPool } from "../utils/ViewPool.js";
+// import { View } from "./View.js";
+// import { ViewPool } from "../utils/ViewPool.js";
 import * as THREE from "three";
-import { RelationshipModel } from "../models/RelationshipModel.js";
-import { createSeededRandom, getRadialPoints, getPointOnBoxFromCenter } from "../utils/pointUtils.js";
-import { Paper, PAPER_TEXTURE_PATHS } from "../components/Paper.js";
-import { Corkboard } from "../components/Corkboard.js";
-import { InputService } from "../services/InputService.js";
+// import { RelationshipModel } from "../models/RelationshipModel.js";
+// import { createSeededRandom, getRadialPoints, getPointOnBoxFromCenter } from "../utils/pointUtils.js";
+// import { Paper, PAPER_TEXTURE_PATHS } from "../components/Paper.js";
+// import { Corkboard } from "../components/Corkboard.js";
+// import { InputService } from "../services/InputService.js";
+// 
+const appModules = window[`apps_${performance.timeOrigin}`].modules;
+const { View } = appModules.views.View;
+const { ViewPool } = appModules.utils.ViewPool;
+const { RelationshipModel } = appModules.models.RelationshipModel;
+const { createSeededRandom, getRadialPoints, getPointOnBoxFromCenter } = appModules.utils.pointUtils;
+const { Paper, PAPER_TEXTURE_PATHS } = appModules.components.Paper;
+const { Corkboard } = appModules.components.Corkboard;
+const { InputService } = appModules.services.InputService;
 
 const ARTICLE_BACKGROUND_PAPER_COUNT = 512;
 const ARTICLE_BACKGROUND_STACK_STEP = 0.0001;

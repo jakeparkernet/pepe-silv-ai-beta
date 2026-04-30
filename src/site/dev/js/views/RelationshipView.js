@@ -1,7 +1,12 @@
-import { ThreadView } from "./ThreadView.js";
+// import { ThreadView } from "./ThreadView.js";
 import * as THREE from "three";
-import { StickyNote } from "../components/StickyNote.js";
-import { getTiltQuaternion } from "../utils/getTiltQuaternion.js";
+// import { StickyNote } from "../components/StickyNote.js";
+// import { getTiltQuaternion } from "../utils/getTiltQuaternion.js";
+// 
+const appModules = window[`apps_${performance.timeOrigin}`].modules;
+const { ThreadView } = appModules.views.ThreadView;
+const { StickyNote } = appModules.components.StickyNote;
+const { getTiltQuaternion } = appModules.utils.getTiltQuaternion;
 
 class RelationshipView extends ThreadView {
 

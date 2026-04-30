@@ -1,15 +1,16 @@
-import Stats from "three/addons/libs/stats.module.js";
 import { GUI } from "three/addons/libs/lil-gui.module.min.js";
 import { LUTImageLoader } from "three/addons/loaders/LUTImageLoader.js";
-
-import { TextService } from "../services/TextService.js";
+// import Stats from "three/addons/libs/stats.module.js";
+// import { TextService } from "../services/TextService.js";
+const appModules = window[`apps_${performance.timeOrigin}`].modules;
+const { TextService } = appModules.services.TextService;
 
 class DebugController {
     constructor({
         camera = null,
         cameraController = null,
         guiFactory = GUI,
-        statsFactory = Stats,
+        statsFactory = globalThis.Stats,
         lutLoaderFactory = LUTImageLoader,
         lutBasePath = "./resources/LUT/",
         lutConfigUrl = "./resources/LUT/luts.json",

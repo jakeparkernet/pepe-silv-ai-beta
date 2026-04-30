@@ -1,9 +1,15 @@
 import * as THREE from "three";
 import { OBB } from "../thirdparty/three.js-r181/examples/jsm/math/OBB.js";
-import { Paper } from "../components/Paper.js";
-import { View } from "./View.js";
-import { TextService } from "../services/TextService.js";
-import { InputService } from "../services/InputService.js";
+// import { Paper } from "../components/Paper.js";
+// import { View } from "./View.js";
+// import { TextService } from "../services/TextService.js";
+// import { InputService } from "../services/InputService.js";
+// 
+const appModules = window[`apps_${performance.timeOrigin}`].modules;
+const { Paper } = appModules.components.Paper;
+const { View } = appModules.views.View;
+const { TextService } = appModules.services.TextService;
+const { InputService } = appModules.services.InputService;
 
 class EvidenceView extends View {
     constructor(options = {}) {

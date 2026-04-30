@@ -1,10 +1,18 @@
 import * as THREE from "three";
-import { InstancedMeshPool } from "../utils/AssetPool.js";
-import { MeshInstance } from "../utils/MeshInstance.js";
-import { TextLayoutEngine } from "./TextLayoutEngine.js";
-import { TextGeometryBuilder } from "./TextGeometryBuilder.js";
-import { SDFTextInstance } from "./SDFTextInstance.js";
-import { TextInstanceHandle } from "./TextInstanceHandle.js";
+// import { InstancedMeshPool } from "../utils/AssetPool.js";
+// import { MeshInstance } from "../utils/MeshInstance.js";
+// import { TextLayoutEngine } from "./TextLayoutEngine.js";
+// import { TextGeometryBuilder } from "./TextGeometryBuilder.js";
+// import { SDFTextInstance } from "./SDFTextInstance.js";
+// import { TextInstanceHandle } from "./TextInstanceHandle.js";
+// 
+const appModules = window[`apps_${performance.timeOrigin}`].modules;
+const { InstancedMeshPool } = appModules.utils.AssetPool;
+const { MeshInstance } = appModules.utils.MeshInstance;
+const { TextLayoutEngine } = appModules.text.TextLayoutEngine;
+const { TextGeometryBuilder } = appModules.text.TextGeometryBuilder;
+const { SDFTextInstance } = appModules.text.SDFTextInstance;
+const { TextInstanceHandle } = appModules.text.TextInstanceHandle;
 
 const SDF_TEXT_RENDER_LAYER = 1;
 

@@ -1,5 +1,8 @@
-import { View } from "./View.js";
+// import { View } from "./View.js";
 import * as THREE from "three";
+
+const appModules = window[`apps_${performance.timeOrigin}`].modules;
+const { View } = appModules.views.View;
 
 class NodeView extends View {
   constructor() {

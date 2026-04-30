@@ -1,8 +1,13 @@
 import * as THREE from 'three';
-
-import { CameraPanPass } from './CameraPanPass.js';
-import { CameraZoomPass } from './CameraZoomPass.js';
-import { CameraLookSwoopPass } from './CameraLookSwoopPass.js';
+// 
+// import { CameraPanPass } from './CameraPanPass.js';
+// import { CameraZoomPass } from './CameraZoomPass.js';
+// import { CameraLookSwoopPass } from './CameraLookSwoopPass.js';
+// 
+const appModules = window[`apps_${performance.timeOrigin}`].modules;
+const { CameraPanPass } = appModules.rendering.CameraPanPass;
+const { CameraZoomPass } = appModules.rendering.CameraZoomPass;
+const { CameraLookSwoopPass } = appModules.rendering.CameraLookSwoopPass;
 
 class CameraController {
     /**

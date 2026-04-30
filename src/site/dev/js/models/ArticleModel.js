@@ -1,6 +1,11 @@
-import { InvestigationModel } from "./InvestigationModel.js";
-import { OwnershipTreeModel } from "./OwnershipTreeModel.js";
-import { NewsSiteModel } from "./NewsSiteModel.js";
+// import { InvestigationModel } from "./InvestigationModel.js";
+// import { OwnershipTreeModel } from "./OwnershipTreeModel.js";
+// import { NewsSiteModel } from "./NewsSiteModel.js";
+// 
+const appModules = window[`apps_${performance.timeOrigin}`].modules;
+const { InvestigationModel } = appModules.models.InvestigationModel;
+const { OwnershipTreeModel } = appModules.models.OwnershipTreeModel;
+const { NewsSiteModel } = appModules.models.NewsSiteModel;
 
 class ArticleModel {
     constructor (articleData) {

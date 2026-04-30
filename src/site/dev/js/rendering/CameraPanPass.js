@@ -1,5 +1,8 @@
 import * as THREE from 'three';
-import { InputService } from '../services/InputService.js';
+// import { InputService } from '../services/InputService.js';
+// 
+const appModules = window[`apps_${performance.timeOrigin}`].modules;
+const { InputService } = appModules.services.InputService;
 
 class CameraPanPass {
     constructor(canvas, camera, opts = {}) {

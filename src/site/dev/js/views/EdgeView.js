@@ -1,6 +1,10 @@
-import { View } from "./View.js";
+// import { View } from "./View.js";
 import * as THREE from "three";
-import { createPooledMesh } from "../utils/AssetPool.js";
+// import { createPooledMesh } from "../utils/AssetPool.js";
+// 
+const appModules = window[`apps_${performance.timeOrigin}`].modules;
+const { View } = appModules.views.View;
+const { createPooledMesh } = appModules.utils.AssetPool;
 
 class EdgeView extends View {
     constructor(params = {}) {

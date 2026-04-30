@@ -1,8 +1,14 @@
 import * as THREE from "three";
-import { View } from "./View.js";
-import { EntityViewNew } from "./EntityViewNew.js";
-import { ThreadView } from "./ThreadView.js";
-import { StickyNote } from "../components/StickyNote.js";
+// import { View } from "./View.js";
+// import { EntityViewNew } from "./EntityViewNew.js";
+// import { ThreadView } from "./ThreadView.js";
+// import { StickyNote } from "../components/StickyNote.js";
+// 
+const appModules = window[`apps_${performance.timeOrigin}`].modules;
+const { View } = appModules.views.View;
+const { EntityViewNew } = appModules.views.EntityViewNew;
+const { ThreadView } = appModules.views.ThreadView;
+const { StickyNote } = appModules.components.StickyNote;
 
 const DEFAULT_STATUS_CONFIG_PATH = "./status_states.json";
 const DEFAULT_CARD_SPACING = 8.5;

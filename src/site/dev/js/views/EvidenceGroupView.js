@@ -1,9 +1,16 @@
 import * as THREE from "three";
-import { View } from "./View.js";
-import { ViewPool } from "../utils/ViewPool.js";
-import { getTiltQuaternion } from "../utils/getTiltQuaternion.js";
-import { RaisedLabel } from "../components/RaisedLabel.js";
-import { InputService } from "../services/InputService.js";
+// import { View } from "./View.js";
+// import { ViewPool } from "../utils/ViewPool.js";
+// import { getTiltQuaternion } from "../utils/getTiltQuaternion.js";
+// import { RaisedLabel } from "../components/RaisedLabel.js";
+// import { InputService } from "../services/InputService.js";
+// 
+const appModules = window[`apps_${performance.timeOrigin}`].modules;
+const { View } = appModules.views.View;
+const { ViewPool } = appModules.utils.ViewPool;
+const { getTiltQuaternion } = appModules.utils.getTiltQuaternion;
+const { RaisedLabel } = appModules.components.RaisedLabel;
+const { InputService } = appModules.services.InputService;
 
 const MAX_RENDERED_EVIDENCE_ITEMS = 3;
 

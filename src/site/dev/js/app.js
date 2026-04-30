@@ -1,29 +1,63 @@
-import { ArticleApiService } from "./services/ArticleApiService.js";
-import { ChromeController } from "./controllers/ChromeController.js";
-import { PageBackgroundController } from "./controllers/PageBackgroundController.js";
-import { VisualizationController } from "./controllers/VisualizationController.js";
-import { DetailPanelController } from "./controllers/DetailPanelController.js";
-import { SummaryBannerController } from "./controllers/SummaryBannerController.js";
-import { DebugController } from "./controllers/DebugController.js";
-import { ArticleSubmissionController } from "./controllers/ArticleSubmissionController.js";
+// import { ArticleApiService } from "./services/ArticleApiService.js";
+// import { ChromeController } from "./controllers/ChromeController.js";
+// import { PageBackgroundController } from "./controllers/PageBackgroundController.js";
+// import { VisualizationController } from "./controllers/VisualizationController.js";
+// import { DetailPanelController } from "./controllers/DetailPanelController.js";
+// import { SummaryBannerController } from "./controllers/SummaryBannerController.js";
+// import { DebugController } from "./controllers/DebugController.js";
+// import { ArticleSubmissionController } from "./controllers/ArticleSubmissionController.js";
+// import { TextService } from "./services/TextService.js";
+// import { InstancedMeshPool } from "./utils/AssetPool.js";
+// import { TrashMan } from "./utils/TrashMan.js";
+// import { ArticleD3Graph } from "./components/ArticleD3Graph.js";
+// import { ArticleModel } from "./models/ArticleModel.js";
+// import { EntityModel } from "./models/EntityModel.js";
+// import { RelationshipModel } from "./models/RelationshipModel.js";
+// import { EvidenceModel } from "./models/EvidenceModel.js";
+// import { ViewPool } from "./utils/ViewPool.js";
+// import { PAPER_MATERIAL_CONFIG, applyPaperMaterialConfig } from "./components/Paper.js";
+// import { CORKBOARD_MATERIAL_CONFIG, applyCorkboardMaterialConfig } from "./components/Corkboard.js";
+// import { STICKY_NOTE_MATERIAL_CONFIG, applyStickyNoteMaterialConfig } from "./components/StickyNote.js";
+// import { INDEX_CARD_MATERIAL_CONFIG, applyIndexCardMaterialConfig } from "./components/IndexCard.js";
+// import { TAPE_LABEL_MATERIAL_CONFIG, applyTapeLabelMaterialConfig } from "./components/TapeLabel.js";
+// import { RAISED_LABEL_MATERIAL_CONFIG, applyRaisedLabelMaterialConfig } from "./components/RaisedLabel.js";
+// import { THREAD_MATERIAL_CONFIG, applyThreadMaterialConfig } from "./views/ThreadView.js";
 
-import { TextService } from "./services/TextService.js";
-import { InstancedMeshPool } from "./utils/AssetPool.js";
-import { TrashMan } from "./utils/TrashMan.js";
-import { ArticleD3Graph } from "./components/ArticleD3Graph.js";
-import { ArticleModel } from "./models/ArticleModel.js";
-import { EntityModel } from "./models/EntityModel.js";
-import { RelationshipModel } from "./models/RelationshipModel.js";
-import { EvidenceModel } from "./models/EvidenceModel.js";
-import { ViewPool } from "./utils/ViewPool.js";
+let ArticleApiService;
+let ChromeController;
+let PageBackgroundController;
+let VisualizationController;
+let DetailPanelController;
+let SummaryBannerController;
+let DebugController;
+let ArticleSubmissionController;
+let TextService;
+let InstancedMeshPool;
+let TrashMan;
+let ArticleD3Graph;
+let ArticleModel;
+let EntityModel;
+let RelationshipModel;
+let EvidenceModel;
+let ViewPool;
+let PAPER_MATERIAL_CONFIG;
+let applyPaperMaterialConfig;
+let CORKBOARD_MATERIAL_CONFIG;
+let applyCorkboardMaterialConfig;
+let STICKY_NOTE_MATERIAL_CONFIG;
+let applyStickyNoteMaterialConfig;
+let INDEX_CARD_MATERIAL_CONFIG;
+let applyIndexCardMaterialConfig;
+let TAPE_LABEL_MATERIAL_CONFIG;
+let applyTapeLabelMaterialConfig;
+let RAISED_LABEL_MATERIAL_CONFIG;
+let applyRaisedLabelMaterialConfig;
+let THREAD_MATERIAL_CONFIG;
+let applyThreadMaterialConfig;
 
-import { PAPER_MATERIAL_CONFIG, applyPaperMaterialConfig } from "./components/Paper.js";
-import { CORKBOARD_MATERIAL_CONFIG, applyCorkboardMaterialConfig } from "./components/Corkboard.js";
-import { STICKY_NOTE_MATERIAL_CONFIG, applyStickyNoteMaterialConfig } from "./components/StickyNote.js";
-import { INDEX_CARD_MATERIAL_CONFIG, applyIndexCardMaterialConfig } from "./components/IndexCard.js";
-import { TAPE_LABEL_MATERIAL_CONFIG, applyTapeLabelMaterialConfig } from "./components/TapeLabel.js";
-import { RAISED_LABEL_MATERIAL_CONFIG, applyRaisedLabelMaterialConfig } from "./components/RaisedLabel.js";
-import { THREAD_MATERIAL_CONFIG, applyThreadMaterialConfig } from "./views/ThreadView.js";
+let MATERIAL_GUI_CONFIGS = null;
+
+const LOADER_STAGE_EVENT = "pepe-loader-stage";
 
 const TEXT_GUI_CONFIGS = {
     title: {
@@ -60,37 +94,6 @@ const TEXT_GUI_CONFIGS = {
     }
 };
 
-const MATERIAL_GUI_CONFIGS = {
-    paper: {
-        config: PAPER_MATERIAL_CONFIG,
-        apply: applyPaperMaterialConfig
-    },
-    corkboard: {
-        config: CORKBOARD_MATERIAL_CONFIG,
-        apply: applyCorkboardMaterialConfig
-    },
-    stickyNote: {
-        config: STICKY_NOTE_MATERIAL_CONFIG,
-        apply: applyStickyNoteMaterialConfig
-    },
-    indexCard: {
-        config: INDEX_CARD_MATERIAL_CONFIG,
-        apply: applyIndexCardMaterialConfig
-    },
-    tapeLabel: {
-        config: TAPE_LABEL_MATERIAL_CONFIG,
-        apply: applyTapeLabelMaterialConfig
-    },
-    raisedLabel: {
-        config: RAISED_LABEL_MATERIAL_CONFIG,
-        apply: applyRaisedLabelMaterialConfig
-    },
-    thread: {
-        config: THREAD_MATERIAL_CONFIG,
-        apply: applyThreadMaterialConfig
-    }
-};
-
 class App {
     constructor() {
         this.windowRef = window;
@@ -102,6 +105,7 @@ class App {
         this.onUrlInputChanged = this.onUrlInputChanged.bind(this);
         this.onUrlInputPasted = this.onUrlInputPasted.bind(this);
         this.handleResolvedArticle = this.handleResolvedArticle.bind(this);
+        this.onLoaderStage = this.onLoaderStage.bind(this);
 
         this.foreground = document.getElementById("foreground");
         this.pageBackground = document.getElementById("page-background");
@@ -117,6 +121,7 @@ class App {
         this.supportedSites = document.getElementById("supported-sites");
         this.threeCanvas = document.getElementById("three-canvas");
         this.d3CanvasContainer = document.getElementById("d3-canvas-container");
+        this.viewToggleContainer = document.getElementById("view-toggle-container");
         this.visualizationButtons = {
             three: document.getElementById("toggle-three-view"),
             d3: document.getElementById("toggle-d3-view")
@@ -139,11 +144,22 @@ class App {
         this.pageTitle = document.getElementById("page-title");
         this.attribution = document.getElementById("attribution");
 
+        this.loaderState = {
+            retrieval: false,
+            d3: false,
+            three: false
+        };
+        this.runtimeState = {
+            d3: false,
+            three: false
+        };
+
         this.entities = {};
         this.relationships = {};
         this.evidenceIds = new Set();
         this.evidence = {};
         this.articleView = null;
+        this.pendingResolvedArticle = null;
 
         this.apiService = new ArticleApiService({
             supportedSitesText: this.supportedSites?.textContent ?? "",
@@ -163,8 +179,6 @@ class App {
             summaryBanner: this.summaryBanner
         });
 
-        this.d3Graph = new ArticleD3Graph("#d3-canvas", "#d3-canvas-container");
-
         this.pageBackgroundController = new PageBackgroundController({
             dom: {
                 pageBackground: this.pageBackground,
@@ -173,22 +187,6 @@ class App {
                 pageBackgroundBlurLayer: this.pageBackgroundBlurLayer,
                 threeCanvas: this.threeCanvas
             }
-        });
-
-        this.visualizationController = new VisualizationController({
-            canvas: this.threeCanvas,
-            getRenderDimensions: () => this.getRenderDimensions(),
-            d3Graph: this.d3Graph,
-            onModeChange: () => {},
-            onShowNewSearchContainer: () => this.showNewSearchContainer(),
-            onShowShareContainer: () => this.showShareContainer(),
-            onSetForegroundInteractive: (isInteractive) => this.setForegroundInteractive(isInteractive),
-            onFrame: ({ phase }) => {
-                if (phase === "begin") {
-                    this.debugController?.updateCameraGuiState?.();
-                }
-            },
-            getActiveArticleUrl: () => this.submissionController?.getActiveArticleUrl?.() ?? null
         });
 
         this.chromeController = new ChromeController({
@@ -217,8 +215,9 @@ class App {
                 attribution: this.attribution,
                 lightModeTargets: [this.articleActionToolbar].filter(Boolean)
             },
+            skipInitialVisualizationMode: true,
             callbacks: {
-                onVisualizationModeChange: (mode) => this.visualizationController.setVisualizationMode(mode)
+                onVisualizationModeChange: (mode) => this.visualizationController?.setVisualizationMode?.(mode)
             }
         });
 
@@ -268,20 +267,6 @@ class App {
             }
         });
 
-        this.debugController = new DebugController({
-            camera: this.visualizationController.camera,
-            cameraController: this.visualizationController.cameraController,
-            textGuiConfigs: TEXT_GUI_CONFIGS,
-            materialGuiConfigs: MATERIAL_GUI_CONFIGS,
-            onLutTextureLoaded: (texture3D) => this.visualizationController.applyLutTexture(texture3D),
-            onGuiVisibilityChange: (visible) => {
-                this.debugControlsVisible = visible;
-            },
-            onStatsVisibilityChange: (visible) => {
-                this.statsVisible = visible;
-            }
-        });
-
         this.debugControlsVisible = false;
         this.statsVisible = false;
         this.bootstrapPromise = this.init().catch((error) => {
@@ -292,6 +277,105 @@ class App {
     async init() {
         new TrashMan(this);
         this.exposeGlobalApp();
+        this.windowRef.addEventListener(LOADER_STAGE_EVENT, this.onLoaderStage);
+        this.pageBackgroundController.initialize();
+        this.chromeController.initialize();
+        this.setVisualizationAvailability({ d3: false, three: false });
+        this.bindRuntimeListeners();
+        this.updateViewportMetrics();
+        this.chromeController.showForeground();
+        this.focusAndSelectUrlInput();
+        this.handleInitialUrlParam();
+    }
+
+    onLoaderStage(event) {
+        const stage = event?.detail?.stage ?? event?.detail?.name ?? event?.detail ?? null;
+        const available = event?.detail?.available ?? null;
+
+        if (available != null && typeof available === "object") {
+            this.loaderState = {
+                ...this.loaderState,
+                ...available
+            };
+        }
+
+        if (stage == null) {
+            return;
+        }
+
+        if (stage === "retrieval") {
+            this.loaderState.retrieval = true;
+            this.exposeGlobalApp();
+            this.focusAndSelectUrlInput();
+            return;
+        }
+
+        if (stage === "d3") {
+            bindD3Modules();
+            if (!this.runtimeState.d3) {
+                this.initializeD3Runtime();
+            }
+            return;
+        }
+
+        if (stage === "three") {
+            bindVisualModules();
+            if (!this.runtimeState.three) {
+                this.initializeThreeRuntime();
+            }
+        }
+    }
+
+    initializeD3Runtime() {
+        if (this.runtimeState.d3) {
+            return;
+        }
+
+        if (typeof ArticleD3Graph !== "function") {
+            return;
+        }
+
+        this.d3Graph = new ArticleD3Graph("#d3-canvas", "#d3-canvas-container");
+        this.runtimeState.d3 = true;
+        this.loaderState.d3 = true;
+
+        this.renderPendingResolvedArticle();
+    }
+
+    async initializeThreeRuntime() {
+        if (this.runtimeState.three) {
+            return;
+        }
+
+        bindVisualModules();
+
+        if (typeof VisualizationController !== "function" || typeof DebugController !== "function") {
+            return;
+        }
+
+        if (!this.runtimeState.d3) {
+            this.initializeD3Runtime();
+        }
+
+        if (this.d3Graph == null) {
+            return;
+        }
+
+        this.visualizationController = new VisualizationController({
+            canvas: this.threeCanvas,
+            getRenderDimensions: () => this.getRenderDimensions(),
+            d3Graph: this.d3Graph,
+            onModeChange: () => {},
+            onShowNewSearchContainer: () => this.showNewSearchContainer(),
+            onShowShareContainer: () => this.showShareContainer(),
+            onSetForegroundInteractive: (isInteractive) => this.setForegroundInteractive(isInteractive),
+            onFrame: ({ phase }) => {
+                if (phase === "begin") {
+                    this.debugController?.updateCameraGuiState?.();
+                }
+            },
+            getActiveArticleUrl: () => this.submissionController?.getActiveArticleUrl?.() ?? null
+        });
 
         await this.visualizationController.init();
         InstancedMeshPool.setDefaultParent(this.visualizationController.scene);
@@ -306,21 +390,76 @@ class App {
 
         await this.loadTextFonts();
 
+        this.debugController = new DebugController({
+            camera: this.visualizationController.camera,
+            cameraController: this.visualizationController.cameraController,
+            textGuiConfigs: TEXT_GUI_CONFIGS,
+            materialGuiConfigs: MATERIAL_GUI_CONFIGS,
+            onLutTextureLoaded: (texture3D) => this.visualizationController.applyLutTexture(texture3D),
+            onGuiVisibilityChange: (visible) => {
+                this.debugControlsVisible = visible;
+            },
+            onStatsVisibilityChange: (visible) => {
+                this.statsVisible = visible;
+            }
+        });
+
         await this.debugController.init();
         this.setupLutControls();
         this.detailPanelController.initializeDetailPanel();
-        this.chromeController.initialize();
-        this.pageBackgroundController.initialize();
-
-        this.bindRuntimeListeners();
-        this.bindSubmitListeners();
         this.initializeVisualizationToggle();
-        this.updateViewportMetrics();
-
         this.visualizationController.start();
-        this.chromeController.showForeground();
-        this.focusAndSelectUrlInput();
-        this.handleInitialUrlParam();
+        this.runtimeState.three = true;
+        this.loaderState.three = true;
+        this.setVisualizationAvailability({
+            d3: true,
+            three: true
+        });
+        this.chromeController.applyInitialVisualizationMode();
+        this.renderPendingResolvedArticle();
+    }
+
+    setVisualizationAvailability({ d3 = false, three = false } = {}) {
+        const ready = d3 && three;
+
+        if (this.viewToggleContainer != null) {
+            this.viewToggleContainer.classList.toggle("is-visible", ready);
+            this.viewToggleContainer.style.display = ready ? "" : "none";
+        }
+
+        if (this.threeCanvas != null) {
+            this.threeCanvas.style.display = ready ? "" : "none";
+        }
+
+        if (this.d3CanvasContainer != null) {
+            this.d3CanvasContainer.style.display = ready ? "" : "none";
+        }
+
+        if (!ready) {
+            if (this.threeCanvas != null) {
+                this.threeCanvas.style.opacity = "0";
+            }
+
+            if (this.d3CanvasContainer != null) {
+                this.d3CanvasContainer.style.opacity = "0";
+            }
+        } else {
+            this.chromeController?.updateRelationshipKeyVisibility();
+        }
+    }
+
+    renderPendingResolvedArticle() {
+        if (this.pendingResolvedArticle == null) {
+            return;
+        }
+
+        if (!this.runtimeState.three || !this.runtimeState.d3) {
+            return;
+        }
+
+        const pending = this.pendingResolvedArticle;
+        this.pendingResolvedArticle = null;
+        void this.handleResolvedArticle(pending.articleObject, pending.meta);
     }
 
     exposeGlobalApp() {
@@ -333,13 +472,6 @@ class App {
         this.windowRef.addEventListener("resize", this.onWindowResize);
         this.windowRef.visualViewport?.addEventListener("resize", this.onWindowResize);
         this.windowRef.visualViewport?.addEventListener("scroll", this.onWindowResize);
-    }
-
-    bindSubmitListeners() {
-        this.submitButton?.addEventListener("pointerdown", this.onSubmitButtonPointerDown);
-        this.submitButton?.addEventListener("click", this.onSubmitClicked);
-        this.urlInput?.addEventListener("input", this.onUrlInputChanged);
-        this.urlInput?.addEventListener("paste", this.onUrlInputPasted);
     }
 
     initializeVisualizationToggle() {
@@ -491,9 +623,9 @@ class App {
 
     onWindowResize() {
         this.updateViewportMetrics();
-        this.visualizationController.resize();
+        this.visualizationController?.resize?.();
         this.updateArticleActionToolbarPosition();
-        this.debugController.updateCameraGuiState();
+        this.debugController?.updateCameraGuiState?.();
     }
 
     updateViewportMetrics() {
@@ -714,64 +846,64 @@ class App {
     }
 
     hidePageBackground() {
-        return this.pageBackgroundController.hidePageBackground();
+        return this.pageBackgroundController?.hidePageBackground?.();
     }
 
     activateThreeCanvas() {
-        return this.pageBackgroundController.activateThreeCanvas();
+        return this.pageBackgroundController?.activateThreeCanvas?.();
     }
 
     startPageBackgroundFocusLoop() {
-        return this.pageBackgroundController.startPageBackgroundFocusLoop();
+        return this.pageBackgroundController?.startPageBackgroundFocusLoop?.();
     }
 
     stopPageBackgroundFocusLoop() {
-        return this.pageBackgroundController.stopPageBackgroundFocusLoop();
+        return this.pageBackgroundController?.stopPageBackgroundFocusLoop?.();
     }
 
     clearCurrentArticleView() {
         this.chromeController.clearRelationshipKey();
 
         if (this.articleView == null) {
-            this.visualizationController.clearCurrentArticleView();
+            this.visualizationController?.clearCurrentArticleView?.();
             return;
         }
 
         this.articleView.cleanupDynamicViews?.();
         this.articleView.hide?.();
-        this.visualizationController.scene?.remove?.(this.articleView.getRootGroup?.());
+        this.visualizationController?.scene?.remove?.(this.articleView.getRootGroup?.());
         ViewPool.returnView(this.articleView);
         this.articleView = null;
-        this.visualizationController.clearCurrentArticleView();
+        this.visualizationController?.clearCurrentArticleView?.();
         this.startPageBackgroundFocusLoop();
     }
 
     ensureArticleStatusViews() {
-        return this.visualizationController.ensureArticleStatusViews();
+        return this.visualizationController?.ensureArticleStatusViews?.();
     }
 
     hideArticleStatusProgress() {
-        return this.visualizationController.hideArticleStatusProgress();
+        return this.visualizationController?.hideArticleStatusProgress?.();
     }
 
     updateArticleStatusProgress(articleObject) {
-        return this.visualizationController.updateArticleStatusProgress(articleObject);
+        return this.visualizationController?.updateArticleStatusProgress?.(articleObject);
     }
 
     applyArticleStatusCameraZoom() {
-        return this.visualizationController.applyArticleStatusCameraZoom();
+        return this.visualizationController?.applyArticleStatusCameraZoom?.();
     }
 
     applyResolvedArticleCameraView() {
-        return this.visualizationController.applyResolvedArticleCameraView();
+        return this.visualizationController?.applyResolvedArticleCameraView?.();
     }
 
     setArticleStatusSpotlightEnabled(enabled = true) {
-        return this.visualizationController.setArticleStatusSpotlightEnabled(enabled);
+        return this.visualizationController?.setArticleStatusSpotlightEnabled?.(enabled);
     }
 
     startArticleLightingIntro() {
-        return this.visualizationController.startArticleLightingIntro();
+        return this.visualizationController?.startArticleLightingIntro?.();
     }
 
     setVisualizationMode(mode) {
@@ -883,6 +1015,17 @@ class App {
     }
 
     async handleResolvedArticle(articleObject, { source = "resolved", targetUrl = null } = {}) {
+        if (!this.runtimeState.three) {
+            this.pendingResolvedArticle = {
+                articleObject,
+                meta: {
+                    source,
+                    targetUrl
+                }
+            };
+            return true;
+        }
+
         this.entities = {};
         this.relationships = {};
         this.evidenceIds = new Set();
@@ -949,4 +1092,569 @@ class App {
     }
 }
 
-export { App };
+const LOADER_GROUPS = [
+    [
+        {
+            path: "./components/ArticleStatusD3.js"
+        },
+        {
+            path: "./components/Corkboard.js"
+        },
+        {
+            path: "./components/NoCommonOwnerD3Chart.js"
+        },
+        {
+            path: "./controllers/ArticleSubmissionController.js"
+        },
+        {
+            path: "./controllers/ChromeController.js"
+        },
+        {
+            path: "./controllers/DetailPanelController.js"
+        },
+        {
+            path: "./controllers/PageBackgroundController.js"
+        },
+        {
+            path: "./controllers/SummaryBannerController.js"
+        },
+        {
+            path: "./models/EntityModel.js"
+        },
+        {
+            path: "./models/EvidenceModel.js"
+        },
+        {
+            path: "./models/OwnershipTreeModel.js"
+        },
+        {
+            path: "./models/RelationshipModel.js"
+        },
+        {
+            path: "./rendering/CameraLookSwoopPass.js"
+        },
+        {
+            path: "./services/articleApiConfig.js"
+        },
+        {
+            path: "./services/InputService.js"
+        },
+        {
+            path: "./text/SDFTextMaterialReference.js"
+        },
+        {
+            path: "./text/TextGeometryBuilder.js"
+        },
+        {
+            path: "./text/TextInstanceHandle.js"
+        },
+        {
+            path: "./text/TextLayoutEngine.js"
+        },
+        {
+            path: "./text/TinySDF.js"
+        },
+        {
+            path: "./utils/MeshInstance.js"
+        },
+        {
+            path: "./utils/pointUtils.js"
+        },
+        {
+            path: "./utils/Queue.js"
+        },
+        {
+            path: "./utils/ThreeJSUtils.js"
+        },
+        {
+            path: "./utils/TrashMan.js"
+        },
+        {
+            path: "./utils/vectorConstants.js"
+        },
+        {
+            path: "./views/View.js"
+        }
+    ],
+    [
+        {
+            path: "./components/Arrow.js"
+        },
+        {
+            path: "./components/ArticleD3Graph.js"
+        },
+        {
+            path: "./models/InvestigationModel.js"
+        },
+        {
+            path: "./models/NewsSiteModel.js"
+        },
+        {
+            path: "./rendering/CameraPanPass.js"
+        },
+        {
+            path: "./rendering/CameraZoomPass.js"
+        },
+        {
+            path: "./services/ArticleApiService.js"
+        },
+        {
+            path: "./text/DynamicSDFont.js"
+        },
+        {
+            path: "./text/SDFTextInstance.js"
+        },
+        {
+            path: "./utils/AssetPool.js"
+        },
+        {
+            path: "./utils/getTiltQuaternion.js"
+        },
+        {
+            path: "./utils/ViewPool.js"
+        },
+        {
+            path: "./views/NodeView.js"
+        }
+    ],
+    [
+        {
+            path: "./components/Paper.js"
+        },
+        {
+            path: "./models/ArticleModel.js"
+        },
+        {
+            path: "./rendering/CameraController.js"
+        },
+        {
+            path: "./text/createFontFromAtlasJsonAndPng.js"
+        },
+        {
+            path: "./text/SDFTextInstancedLayer.js"
+        },
+        {
+            path: "./views/EdgeView.js"
+        },
+        {
+            path: "./views/OwnershipChainView.js"
+        },
+        {
+            path: "./views/OwnerTreeView.js"
+        }
+    ],
+    [
+        {
+            path: "./services/TextService.js"
+        },
+        {
+            path: "./views/ArticleView.js"
+        },
+        {
+            path: "./views/ThreadView.js"
+        }
+    ],
+    [
+        {
+            path: "./components/IndexCard.js"
+        },
+        {
+            path: "./components/RaisedLabel.js"
+        },
+        {
+            path: "./components/StickyNote.js"
+        },
+        {
+            path: "./components/TapeLabel.js"
+        },
+        {
+            path: "./controllers/DebugController.js"
+        },
+        {
+            path: "./views/EntityViewBig.js"
+        },
+        {
+            path: "./views/EvidenceView.js"
+        }
+    ],
+    [
+        {
+            path: "./views/ArrowRelationshipView.js"
+        },
+        {
+            path: "./views/EntityViewNew.js"
+        },
+        {
+            path: "./views/EvidenceGroupView.js"
+        },
+        {
+            path: "./views/RelationshipView.js"
+        }
+    ],
+    [
+        {
+            path: "./views/ArticleStatus.js"
+        }
+    ],
+    [
+        {
+            path: "./controllers/VisualizationController.js"
+        }
+    ],
+    [
+        {
+            kind: "script",
+            path: "./js/thirdparty/d3-7.9.0/d3.js",
+            globalName: "d3",
+            storePath: "thirdparty.d3"
+        },
+        {
+            kind: "script",
+            path: "./js/thirdparty/stats.min.js",
+            globalName: "Stats",
+            storePath: "thirdparty.Stats"
+        }
+    ]
+];
+
+const RETRIEVAL_LOADER_GROUPS = [
+    [
+        {
+            path: "./services/articleApiConfig.js"
+        }
+    ],
+    [
+        {
+            path: "./controllers/PageBackgroundController.js"
+        },
+        {
+            path: "./controllers/ChromeController.js"
+        },
+        {
+            path: "./controllers/DetailPanelController.js"
+        },
+        {
+            path: "./controllers/SummaryBannerController.js"
+        },
+        {
+            path: "./controllers/ArticleSubmissionController.js"
+        },
+        {
+            path: "./services/ArticleApiService.js"
+        },
+        {
+            path: "./utils/TrashMan.js"
+        }
+    ]
+];
+
+const D3_LOADER_GROUPS = [
+    [
+        {
+            kind: "script",
+            path: "./js/thirdparty/d3-7.9.0/d3.js",
+            globalName: "d3",
+            storePath: "thirdparty.d3"
+        }
+    ],
+    [
+        {
+            path: "./components/NoCommonOwnerD3Chart.js"
+        },
+        {
+            path: "./components/ArticleStatusD3.js"
+        }
+    ],
+    [
+        {
+            path: "./components/ArticleD3Graph.js"
+        }
+    ]
+];
+
+const THREE_LOADER_GROUPS = LOADER_GROUPS.slice(0, -1);
+const THREE_STATS_GROUP = [
+    [
+        {
+            kind: "script",
+            path: "./js/thirdparty/stats.min.js",
+            globalName: "Stats",
+            storePath: "thirdparty.Stats"
+        }
+    ]
+];
+
+const LOADER_PHASES = [
+    {
+        name: "retrieval",
+        groups: RETRIEVAL_LOADER_GROUPS
+    },
+    {
+        name: "d3",
+        groups: D3_LOADER_GROUPS
+    },
+    {
+        name: "three",
+        groups: [...THREE_LOADER_GROUPS, ...THREE_STATS_GROUP]
+    }
+];
+
+function getLoadedModule(relativePath) {
+    const appStore = window[`apps_${performance.timeOrigin}`];
+    if (appStore == null || appStore.modules == null) {
+        throw new Error("App modules have not been loaded yet.");
+    }
+
+    const pathParts = relativePath.split(".");
+    let current = appStore.modules;
+
+    for (const part of pathParts) {
+        current = current?.[part];
+    }
+
+    if (current == null) {
+        throw new Error(`Missing loaded module: ${relativePath}`);
+    }
+
+    return current;
+}
+
+function bindCoreModules() {
+    ArticleApiService = getLoadedModule("services.ArticleApiService").ArticleApiService;
+    ChromeController = getLoadedModule("controllers.ChromeController").ChromeController;
+    PageBackgroundController = getLoadedModule("controllers.PageBackgroundController").PageBackgroundController;
+    DetailPanelController = getLoadedModule("controllers.DetailPanelController").DetailPanelController;
+    SummaryBannerController = getLoadedModule("controllers.SummaryBannerController").SummaryBannerController;
+    ArticleSubmissionController = getLoadedModule("controllers.ArticleSubmissionController").ArticleSubmissionController;
+    TrashMan = getLoadedModule("utils.TrashMan").TrashMan;
+}
+
+function bindD3Modules() {
+    ArticleD3Graph = getLoadedModule("components.ArticleD3Graph").ArticleD3Graph;
+}
+
+function bindVisualModules() {
+    VisualizationController = getLoadedModule("controllers.VisualizationController").VisualizationController;
+    DebugController = getLoadedModule("controllers.DebugController").DebugController;
+    TextService = getLoadedModule("services.TextService").TextService;
+    InstancedMeshPool = getLoadedModule("utils.AssetPool").InstancedMeshPool;
+    TrashMan = getLoadedModule("utils.TrashMan").TrashMan;
+    ArticleModel = getLoadedModule("models.ArticleModel").ArticleModel;
+    EntityModel = getLoadedModule("models.EntityModel").EntityModel;
+    RelationshipModel = getLoadedModule("models.RelationshipModel").RelationshipModel;
+    EvidenceModel = getLoadedModule("models.EvidenceModel").EvidenceModel;
+    ViewPool = getLoadedModule("utils.ViewPool").ViewPool;
+    PAPER_MATERIAL_CONFIG = getLoadedModule("components.Paper").PAPER_MATERIAL_CONFIG;
+    applyPaperMaterialConfig = getLoadedModule("components.Paper").applyPaperMaterialConfig;
+    CORKBOARD_MATERIAL_CONFIG = getLoadedModule("components.Corkboard").CORKBOARD_MATERIAL_CONFIG;
+    applyCorkboardMaterialConfig = getLoadedModule("components.Corkboard").applyCorkboardMaterialConfig;
+    STICKY_NOTE_MATERIAL_CONFIG = getLoadedModule("components.StickyNote").STICKY_NOTE_MATERIAL_CONFIG;
+    applyStickyNoteMaterialConfig = getLoadedModule("components.StickyNote").applyStickyNoteMaterialConfig;
+    INDEX_CARD_MATERIAL_CONFIG = getLoadedModule("components.IndexCard").INDEX_CARD_MATERIAL_CONFIG;
+    applyIndexCardMaterialConfig = getLoadedModule("components.IndexCard").applyIndexCardMaterialConfig;
+    TAPE_LABEL_MATERIAL_CONFIG = getLoadedModule("components.TapeLabel").TAPE_LABEL_MATERIAL_CONFIG;
+    applyTapeLabelMaterialConfig = getLoadedModule("components.TapeLabel").applyTapeLabelMaterialConfig;
+    RAISED_LABEL_MATERIAL_CONFIG = getLoadedModule("components.RaisedLabel").RAISED_LABEL_MATERIAL_CONFIG;
+    applyRaisedLabelMaterialConfig = getLoadedModule("components.RaisedLabel").applyRaisedLabelMaterialConfig;
+    THREAD_MATERIAL_CONFIG = getLoadedModule("views.ThreadView").THREAD_MATERIAL_CONFIG;
+    applyThreadMaterialConfig = getLoadedModule("views.ThreadView").applyThreadMaterialConfig;
+
+    MATERIAL_GUI_CONFIGS = {
+        paper: {
+            config: PAPER_MATERIAL_CONFIG,
+            apply: applyPaperMaterialConfig
+        },
+        corkboard: {
+            config: CORKBOARD_MATERIAL_CONFIG,
+            apply: applyCorkboardMaterialConfig
+        },
+        stickyNote: {
+            config: STICKY_NOTE_MATERIAL_CONFIG,
+            apply: applyStickyNoteMaterialConfig
+        },
+        indexCard: {
+            config: INDEX_CARD_MATERIAL_CONFIG,
+            apply: applyIndexCardMaterialConfig
+        },
+        tapeLabel: {
+            config: TAPE_LABEL_MATERIAL_CONFIG,
+            apply: applyTapeLabelMaterialConfig
+        },
+        raisedLabel: {
+            config: RAISED_LABEL_MATERIAL_CONFIG,
+            apply: applyRaisedLabelMaterialConfig
+        },
+        thread: {
+            config: THREAD_MATERIAL_CONFIG,
+            apply: applyThreadMaterialConfig
+        }
+    };
+}
+
+class Loader {
+    static phases = LOADER_PHASES;
+
+    static ensureModuleRoot() {
+        const key = `apps_${performance.timeOrigin}`;
+        window[key] ??= {};
+        window[key].modules ??= {};
+        return window[key].modules;
+    }
+
+    static ensurePath(root, relativePath) {
+        const cleanPath = relativePath.replace(/^\.\//, "").replace(/\.js$/, "");
+        const parts = cleanPath.split("/");
+        let current = root;
+
+        for (const part of parts) {
+            current[part] ??= {};
+            current = current[part];
+        }
+
+        return current;
+    }
+
+    static storeModule(root, relativePath, moduleSpec) {
+        const leaf = Loader.ensurePath(root, relativePath);
+        for (const [exportName, value] of Object.entries(moduleSpec)) {
+            leaf[exportName] = value;
+        }
+        return leaf;
+    }
+
+    static storeValue(root, relativePath, exportName, value) {
+        const leaf = Loader.ensurePath(root, relativePath);
+        leaf[exportName] = value;
+        return leaf;
+    }
+
+    static dispatchStage(stage, details = {}) {
+        window.dispatchEvent(new CustomEvent(LOADER_STAGE_EVENT, {
+            detail: {
+                stage,
+                ...details
+            }
+        }));
+    }
+
+    static async loadScript(src, globalName = null) {
+        if (globalName != null && window[globalName] != null) {
+            return;
+        }
+
+        return new Promise((resolve, reject) => {
+            const existingScript = document.querySelector(`script[data-loader-src="${src}"]`);
+            if (existingScript != null) {
+                if (existingScript.dataset.loaderLoaded === "true") {
+                    resolve();
+                    return;
+                }
+
+                existingScript.addEventListener("load", resolve, { once: true });
+                existingScript.addEventListener("error", () => {
+                    reject(new Error(`Failed to load script: ${src}`));
+                }, { once: true });
+                return;
+            }
+
+            const script = document.createElement("script");
+            script.async = true;
+            script.src = src;
+            script.dataset.loaderSrc = src;
+            script.addEventListener("load", resolve, { once: true });
+            script.addEventListener("error", () => {
+                reject(new Error(`Failed to load script: ${src}`));
+            }, { once: true });
+            script.addEventListener("load", () => {
+                script.dataset.loaderLoaded = "true";
+            }, { once: true });
+            document.head.appendChild(script);
+        });
+    }
+
+    static async load(phases = Loader.phases) {
+        const modulesRoot = Loader.ensureModuleRoot();
+
+        for (const phase of phases) {
+            for (const group of phase.groups) {
+                await Promise.all(group.map(async (descriptor) => {
+                    if (descriptor.kind === "script") {
+                        await Loader.loadScript(descriptor.path, descriptor.globalName);
+
+                        const globalName = descriptor.globalName;
+                        const globalValue = window[globalName];
+                        if (globalValue == null) {
+                            throw new Error(`Script loaded without exposing ${globalName}: ${descriptor.path}`);
+                        }
+
+                        Loader.storeValue(modulesRoot, descriptor.storePath ?? `thirdparty.${globalName}`, globalName, globalValue);
+                        return;
+                    }
+
+                    const moduleSpec = await import(descriptor.path);
+                    const exportMap = { ...moduleSpec };
+
+                    if (Array.isArray(descriptor.imports)) {
+                        for (const exportName of descriptor.imports) {
+                            exportMap[exportName] = moduleSpec[exportName];
+                        }
+                    }
+
+                    if (descriptor.className != null) {
+                        exportMap[descriptor.className] = moduleSpec[descriptor.className] ?? moduleSpec.default ?? moduleSpec[descriptor.className];
+                    } else if (moduleSpec.default != null) {
+                        const fallbackName = descriptor.path
+                            .replace(/^\.\//, "")
+                            .replace(/\.js$/, "")
+                            .split("/")
+                            .pop();
+                        exportMap[fallbackName] = moduleSpec.default;
+                    }
+
+                    Loader.storeModule(modulesRoot, descriptor.path, exportMap);
+                }));
+            }
+
+            const available = phase.name === "retrieval"
+                ? {
+                    retrieval: true,
+                    d3: false,
+                    three: false
+                }
+                : phase.name === "d3"
+                    ? {
+                        retrieval: true,
+                        d3: true,
+                        three: false
+                    }
+                    : {
+                        retrieval: true,
+                        d3: true,
+                        three: true
+                    };
+
+            Loader.dispatchStage(phase.name, {
+                available
+            });
+        }
+    }
+}
+
+async function bootstrapApp() {
+    await Loader.load([LOADER_PHASES[0]]);
+    bindCoreModules();
+    const app = new App();
+    await app.bootstrapPromise;
+    window.__pepeApp = app;
+    app.onLoaderStage({ detail: { stage: "retrieval" } });
+    Loader.load(LOADER_PHASES.slice(1)).catch((error) => {
+        console.error(error);
+    });
+    return app;
+}
+
+bootstrapApp().catch((error) => {
+    console.error(error);
+});
+
+export { App, Loader };

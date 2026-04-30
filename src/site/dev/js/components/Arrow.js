@@ -1,6 +1,10 @@
 import * as THREE from "three";
-import { SDFTextMaterialReference } from "../text/SDFTextMaterialReference.js";
-import { InputService } from "../services/InputService.js";
+// import { SDFTextMaterialReference } from "../text/SDFTextMaterialReference.js";
+// import { InputService } from "../services/InputService.js";
+// 
+const appModules = window[`apps_${performance.timeOrigin}`].modules;
+const { SDFTextMaterialReference } = appModules.text.SDFTextMaterialReference;
+const { InputService } = appModules.services.InputService;
 
 const _arrowTextureLoader = new THREE.TextureLoader();
 const _arrowTextureCache = new Map();

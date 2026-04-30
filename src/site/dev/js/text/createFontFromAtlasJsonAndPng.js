@@ -1,6 +1,9 @@
 // createFontFromAtlasJsonAndPng.js
 import * as THREE from "three";
-import { DynamicSDFont } from "./DynamicSDFont.js";
+// import { DynamicSDFont } from "./DynamicSDFont.js";
+// 
+const appModules = window[`apps_${performance.timeOrigin}`].modules;
+const { DynamicSDFont } = appModules.text.DynamicSDFont;
 
 /**
  * Create a DynamicSDFont from exported JSON + PNG.

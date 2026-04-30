@@ -1,9 +1,16 @@
-import { View } from "./View.js";
-import { ViewPool } from "../utils/ViewPool.js";
+// import { View } from "./View.js";
+// import { ViewPool } from "../utils/ViewPool.js";
 import * as THREE from "three";
-import { RelationshipModel } from "../models/RelationshipModel.js";
-import { createSeededRandom, getRadialPointsWithSpacing, getPointOnBoxFromCenter } from "../utils/pointUtils.js";
-import { InputService } from "../services/InputService.js";
+// import { RelationshipModel } from "../models/RelationshipModel.js";
+// import { createSeededRandom, getRadialPointsWithSpacing, getPointOnBoxFromCenter } from "../utils/pointUtils.js";
+// import { InputService } from "../services/InputService.js";
+// 
+const appModules = window[`apps_${performance.timeOrigin}`].modules;
+const { View } = appModules.views.View;
+const { ViewPool } = appModules.utils.ViewPool;
+const { RelationshipModel } = appModules.models.RelationshipModel;
+const { createSeededRandom, getRadialPointsWithSpacing, getPointOnBoxFromCenter } = appModules.utils.pointUtils;
+const { InputService } = appModules.services.InputService;
 
 class OwnershipChainView extends View {
 

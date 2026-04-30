@@ -1,4 +1,7 @@
-import { NoCommonOwnerD3Chart } from "./NoCommonOwnerD3Chart.js";
+// import { NoCommonOwnerD3Chart } from "./NoCommonOwnerD3Chart.js";
+// 
+const appModules = window[`apps_${performance.timeOrigin}`].modules;
+const { NoCommonOwnerD3Chart } = appModules.components.NoCommonOwnerD3Chart;
 
 const DEFAULT_GRAPH_WIDTH = 1200;
 const DEFAULT_GRAPH_HEIGHT = 800;

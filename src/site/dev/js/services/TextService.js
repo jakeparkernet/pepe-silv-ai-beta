@@ -1,7 +1,12 @@
 import * as THREE from "three";
-import { createFontFromAtlasJsonAndPng } from "../text/createFontFromAtlasJsonAndPng.js";
-import { SDFTextMaterialReference } from "../text/SDFTextMaterialReference.js";
-import { SDFTextInstancedLayer } from "../text/SDFTextInstancedLayer.js";
+// import { createFontFromAtlasJsonAndPng } from "../text/createFontFromAtlasJsonAndPng.js";
+// import { SDFTextMaterialReference } from "../text/SDFTextMaterialReference.js";
+// import { SDFTextInstancedLayer } from "../text/SDFTextInstancedLayer.js";
+// 
+const appModules = window[`apps_${performance.timeOrigin}`].modules;
+const { createFontFromAtlasJsonAndPng } = appModules.text.createFontFromAtlasJsonAndPng;
+const { SDFTextMaterialReference } = appModules.text.SDFTextMaterialReference;
+const { SDFTextInstancedLayer } = appModules.text.SDFTextInstancedLayer;
 
 /**
  * Internal cache entry shape:

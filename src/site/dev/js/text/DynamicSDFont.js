@@ -1,7 +1,10 @@
 // DynamicSDFont.js
 
 import { Texture, LinearFilter, LinearMipMapLinearFilter } from "three";
-import TinySDF from "./TinySDF.js";
+// import TinySDF from "./TinySDF.js";
+// 
+const appModules = window[`apps_${performance.timeOrigin}`].modules;
+const TinySDF = appModules.text.TinySDF.TinySDF;
 
 class DynamicSDFont {
   constructor({

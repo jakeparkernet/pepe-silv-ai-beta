@@ -1,6 +1,10 @@
-import { createPooledMesh } from "../utils/AssetPool.js";
+// import { createPooledMesh } from "../utils/AssetPool.js";
 import * as THREE from "three";
-import { getTiltQuaternion } from "../utils/getTiltQuaternion.js";
+// import { getTiltQuaternion } from "../utils/getTiltQuaternion.js";
+// 
+const appModules = window[`apps_${performance.timeOrigin}`].modules;
+const { createPooledMesh } = appModules.utils.AssetPool;
+const { getTiltQuaternion } = appModules.utils.getTiltQuaternion;
 
 const PAPER_TEXTURE_PATHS = [
     "resources/handmade-paper-tiling.jpg",

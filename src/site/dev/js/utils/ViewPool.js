@@ -1,16 +1,7 @@
-import { Queue } from "./Queue.js";
+// import { Queue } from "./Queue.js";
+const { Queue } = window[`apps_${performance.timeOrigin}`].modules.utils.Queue;
 
-import { ThreadView } from "../views/ThreadView.js";
-
-import { ArticleView } from "../views/ArticleView.js";
-import { EntityViewNew } from "../views/EntityViewNew.js";
-import { RelationshipView } from "../views/RelationshipView.js";
-import { ArrowRelationshipView } from "../views/ArrowRelationshipView.js";
-import { OwnershipChainView } from "../views/OwnershipChainView.js";
-import { EvidenceView } from "../views/EvidenceView.js";
-import { EvidenceGroupView } from "../views/EvidenceGroupView.js";
-import { EntityViewBig } from "../views/EntityViewBig.js";
-import { OwnerTreeView } from "../views/OwnerTreeView.js";
+const getAppModules = () => window[`apps_${performance.timeOrigin}`]?.modules;
 
 class TrackedView {
   constructor(key, Ctor) {
@@ -40,16 +31,16 @@ class ViewPool {
   static availableViews = new Map();
   static unavailableByInstance = new Map();
   static viewFactories = new Map([
-    ["thread", ThreadView],
-    ["article_view", ArticleView],
-    ["entity_view_new", EntityViewNew],
-    ["relationship", RelationshipView],
-    ["arrow_relationship", ArrowRelationshipView],
-    ["ownership_chain", OwnershipChainView],
-    ["evidence", EvidenceView],
-    ["evidence_group", EvidenceGroupView],
-    ["entity_view_big", EntityViewBig],
-    ["owner_tree", OwnerTreeView],
+    ["thread", () => getAppModules().views.ThreadView.ThreadView],
+    ["article_view", () => getAppModules().views.ArticleView.ArticleView],
+    ["entity_view_new", () => getAppModules().views.EntityViewNew.EntityViewNew],
+    ["relationship", () => getAppModules().views.RelationshipView.RelationshipView],
+    ["arrow_relationship", () => getAppModules().views.ArrowRelationshipView.ArrowRelationshipView],
+    ["ownership_chain", () => getAppModules().views.OwnershipChainView.OwnershipChainView],
+    ["evidence", () => getAppModules().views.EvidenceView.EvidenceView],
+    ["evidence_group", () => getAppModules().views.EvidenceGroupView.EvidenceGroupView],
+    ["entity_view_big", () => getAppModules().views.EntityViewBig.EntityViewBig],
+    ["owner_tree", () => getAppModules().views.OwnerTreeView.OwnerTreeView],
   ]);
 
   // Initialize queues for each view type
@@ -94,7 +85,8 @@ class ViewPool {
   }
 
   static generateTrackedView(key) {
-    const ViewCtor = ViewPool.viewFactories.get(key);
+    const ViewCtorFactory = ViewPool.viewFactories.get(key);
+    const ViewCtor = ViewCtorFactory?.();
     if (!ViewCtor) {
       throw new Error(`Unknown view key: ${key}`);
     }

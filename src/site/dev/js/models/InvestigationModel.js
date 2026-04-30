@@ -1,4 +1,7 @@
-import { EntityModel } from "./EntityModel.js";
+// import { EntityModel } from "./EntityModel.js";
+// 
+const appModules = window[`apps_${performance.timeOrigin}`].modules;
+const { EntityModel } = appModules.models.EntityModel;
 
 class InvestigationModel {
     constructor(investigationData) {

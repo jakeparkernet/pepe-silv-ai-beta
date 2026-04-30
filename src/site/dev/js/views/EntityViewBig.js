@@ -1,8 +1,14 @@
 import * as THREE from "three";
-import { NodeView } from "./NodeView.js";
-import { getTiltQuaternion } from "../utils/getTiltQuaternion.js";
-import { TextService } from "../services/TextService.js";
-import { InputService } from "../services/InputService.js";
+// import { NodeView } from "./NodeView.js";
+// import { getTiltQuaternion } from "../utils/getTiltQuaternion.js";
+// import { TextService } from "../services/TextService.js";
+// import { InputService } from "../services/InputService.js";
+// 
+const appModules = window[`apps_${performance.timeOrigin}`].modules;
+const { NodeView } = appModules.views.NodeView;
+const { getTiltQuaternion } = appModules.utils.getTiltQuaternion;
+const { TextService } = appModules.services.TextService;
+const { InputService } = appModules.services.InputService;
 
 class EntityViewBig extends NodeView {
     constructor() {

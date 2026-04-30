@@ -1,8 +1,14 @@
-import { createPooledMesh } from "../utils/AssetPool.js";
+// import { createPooledMesh } from "../utils/AssetPool.js";
 import * as THREE from "three";
-import { TextService } from "../services/TextService.js";
-import { getTiltQuaternion } from "../utils/getTiltQuaternion.js";
-import { InputService } from "../services/InputService.js";
+// import { TextService } from "../services/TextService.js";
+// import { getTiltQuaternion } from "../utils/getTiltQuaternion.js";
+// import { InputService } from "../services/InputService.js";
+// 
+const appModules = window[`apps_${performance.timeOrigin}`].modules;
+const { createPooledMesh } = appModules.utils.AssetPool;
+const { TextService } = appModules.services.TextService;
+const { getTiltQuaternion } = appModules.utils.getTiltQuaternion;
+const { InputService } = appModules.services.InputService;
 
 const TAPE_LABEL_MATERIAL_CONFIG = {
     color: "#fbf6c7",

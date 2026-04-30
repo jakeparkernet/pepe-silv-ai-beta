@@ -16,8 +16,6 @@
         }
     }
     </script>
-    <script src="./js/thirdparty/d3-7.9.0/d3.js"></script>
-    <script src="./js/thirdparty/stats.min.js"></script>
 </head>
 
 <body>
@@ -29,21 +27,21 @@
             <div class="page-background-overlay page-background-overlay-tint"></div>
         </div>
     </div>
-    <canvas id="three-canvas"></canvas>
-    <div id="d3-canvas-container" aria-hidden="true">
+    <canvas id="three-canvas" style="display: none;"></canvas>
+    <div id="d3-canvas-container" aria-hidden="true" style="display: none;">
         <svg id="d3-canvas"></svg>
     </div>
     <div id="mobile-top-shell">
         <div id="summary-banner"></div>
         <div id="mobile-top-controls">
             <div id="mobile-primary-actions">
-                <div id="view-toggle-container" role="group" aria-label="Visualization mode">
+                <div id="view-toggle-container" role="group" aria-label="Visualization mode" style="display: none;">
                     <div id="toggle-three-view" class="view-toggle-button view-toggle-button-dark is-active" type="button"
-                        aria-label="Dark view" title="Dark view"><img width="16px" src="resources/pepe_emoji.webp" alt="Dark view" />
+                        aria-label="Dark view" title="Dark view"><img width="16px" src="resources/pepe_emoji.webp" alt="Dark view" loading="lazy" decoding="async" />
                     </div>
                     <div id="toggle-d3-view" class="view-toggle-button view-toggle-button-light" type="button"
                         aria-label="Light view" title="Light view"><img width="16px" src="resources/ggg_emoji.webp"
-                            alt="Light view" /></div>
+                            alt="Light view" loading="lazy" decoding="async" /></div>
                 </div>
                 <div id="article-action-toolbar">
                     <div id="new-search-container" role="group" aria-label="New search">
@@ -62,15 +60,15 @@
     <div id="support-buttons" aria-label="Support Pepe Silv.AI">
         <a href="https://github.com/jakeparkernet/pepe-silv-ai-beta" class="support-btn" target="_blank" rel="noopener noreferrer">
             <span class="text">Source code</span>
-            <img src="resources/code-icon.svg" alt="Code" />
+            <img src="resources/code-icon.svg" alt="Code" loading="lazy" decoding="async" />
         </a>
         <a href="https://buymeacoffee.com/jakeparkersusername" class="support-btn" target="_blank" rel="noopener noreferrer">
             <span class="text">Buy me a coffee</span>
-            <img src="resources/bmc-logo-no-background.png" alt="Coffee" />
+            <img src="resources/bmc-logo-no-background.png" alt="Coffee" loading="lazy" decoding="async" />
         </a>
         <a href="https://patreon.com/JakeParkersUsername" class="support-btn" target="_blank" rel="noopener noreferrer">
             <span class="text">Support me on Patreon</span>
-            <img src="resources/PATREON_SYMBOL_1_BLACK_RGB.svg" alt="Patreon" />
+            <img src="resources/PATREON_SYMBOL_1_BLACK_RGB.svg" alt="Patreon" loading="lazy" decoding="async" />
         </a>
     </div>
     <div id="bottom-stack">
@@ -85,23 +83,89 @@
         </div>
         <div id="detail-panel-body"></div>
     </aside>
-    <div id="foreground">
+    <div id="foreground" style="display: block;">
         <div id="mobile-bottom-shell">
-            <div id="url-input-container">
+            <form id="url-input-container" novalidate>
                 <input id="url-input" placeholder="Enter the URL of a news article to scan for financial conflicts."
                     type="url"></input>
                 <div id="url-submit-button-container">
-                    <div id="url-submit-button"></div>
+                    <div id="url-submit-button" role="button" tabindex="0" aria-label="Submit URL"></div>
                 </div>
-            </div>
+            </form>
             <div id="supported-sites">Supported sites: nbcnews.com &nbsp; nypost.com &nbsp; theverge.com &nbsp; cnn.com &nbsp; washingtonpost.com &nbsp; nytimes.com &nbsp; foxnews.com &nbsp; abcnews.com</div>
             <div id="submit-status-message" aria-live="polite"></div>
             <div id="submit-status-timer" aria-hidden="true"></div>
         </div>
     </div>
+    <script>
+        (() => {
+            const deferredHandlers = [];
+
+            const forwardWhenReady = (handler) => {
+                const app = window.__pepeApp;
+                if (app != null) {
+                    handler(app);
+                    return;
+                }
+
+                deferredHandlers.push(handler);
+            };
+
+            const flushDeferredHandlers = () => {
+                const app = window.__pepeApp;
+                if (app == null) {
+                    window.requestAnimationFrame(flushDeferredHandlers);
+                    return;
+                }
+
+                while (deferredHandlers.length > 0) {
+                    deferredHandlers.shift()(app);
+                }
+            };
+
+            document.getElementById("url-input-container")?.addEventListener("submit", (event) => {
+                event.preventDefault();
+                forwardWhenReady((app) => {
+                    app.onSubmitClicked({
+                        type: "submit",
+                        preventDefault() {}
+                    });
+                });
+            });
+
+            document.getElementById("url-submit-button")?.addEventListener("pointerdown", (event) => {
+                forwardWhenReady((app) => {
+                    app.onSubmitButtonPointerDown(event);
+                });
+            });
+
+            document.getElementById("url-submit-button")?.addEventListener("click", (event) => {
+                event.preventDefault();
+                forwardWhenReady((app) => {
+                    app.onSubmitClicked({
+                        type: "click",
+                        preventDefault() {}
+                    });
+                });
+            });
+
+            document.getElementById("url-input")?.addEventListener("paste", (event) => {
+                forwardWhenReady((app) => {
+                    app.onUrlInputPasted(event);
+                });
+            });
+
+            document.getElementById("url-input")?.addEventListener("input", (event) => {
+                forwardWhenReady((app) => {
+                    app.onUrlInputChanged(event);
+                });
+            });
+
+            flushDeferredHandlers();
+        })();
+    </script>
     <script type="module" defer>
-        import { App } from "./js/app.js"
-        let app = new App();
+        import "./js/app.js";
 
         window.__THREE_DEBUG_COUNT = (window.__THREE_DEBUG_COUNT || 0) + 1;
         console.log('%c Three.js instance #' + window.__THREE_DEBUG_COUNT, 'font-size:20px;color:#f0f');

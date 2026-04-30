@@ -1,7 +1,12 @@
 import * as THREE from "three";
-import { NodeView } from "./NodeView.js";
-import { IndexCard } from "../components/IndexCard.js";
-import { getTiltQuaternion } from "../utils/getTiltQuaternion.js";
+// import { NodeView } from "./NodeView.js";
+// import { IndexCard } from "../components/IndexCard.js";
+// import { getTiltQuaternion } from "../utils/getTiltQuaternion.js";
+// 
+const appModules = window[`apps_${performance.timeOrigin}`].modules;
+const { NodeView } = appModules.views.NodeView;
+const { IndexCard } = appModules.components.IndexCard;
+const { getTiltQuaternion } = appModules.utils.getTiltQuaternion;
 
 class EntityViewNew extends NodeView {
     constructor() {
