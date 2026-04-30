@@ -185,6 +185,11 @@ export class PageBackgroundController {
         }
 
         const token = ++this.pageBackgroundImageLoadToken;
+        this.timers.clearTimeout?.(this.pageBackgroundImageLoadTimeout);
+        this.timers.cancelIdleCallback?.(this.pageBackgroundIdleCallbackId);
+        this.pageBackgroundImageLoadTimeout = null;
+        this.pageBackgroundIdleCallbackId = null;
+
         const applyImage = () => {
             if (token !== this.pageBackgroundImageLoadToken) {
                 return;
@@ -195,30 +200,16 @@ export class PageBackgroundController {
             this.callbacks.onImageApplied?.(imageUrl);
         };
 
-        const startLoad = () => {
-            const image = new Image();
-            image.decoding = "async";
-            image.loading = "lazy";
-            image.onload = applyImage;
-            image.onerror = applyImage;
-            image.src = imageUrl;
+        const image = new Image();
+        image.decoding = "async";
+        image.fetchPriority = "high";
+        image.onload = applyImage;
+        image.onerror = applyImage;
+        image.src = imageUrl;
 
-            if (image.complete) {
-                applyImage();
-            }
-        };
-
-        const scheduleLoad = () => {
-            this.timers.clearTimeout?.(this.pageBackgroundImageLoadTimeout);
-            this.pageBackgroundImageLoadTimeout = this.timers.setTimeout?.(startLoad, 0) ?? null;
-        };
-
-        if (typeof this.timers.requestIdleCallback === "function") {
-            this.pageBackgroundIdleCallbackId = this.timers.requestIdleCallback(scheduleLoad, { timeout: 1500 });
-            return;
+        if (image.complete) {
+            applyImage();
         }
-
-        scheduleLoad();
     }
 
     applyPageBackgroundFocusState({

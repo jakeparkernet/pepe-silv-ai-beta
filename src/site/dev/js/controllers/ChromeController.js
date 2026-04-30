@@ -1,6 +1,7 @@
 const DEFAULT_VISUAL_MODE_STORAGE_KEY = "visual-mode";
 const MOBILE_VIEWPORT_QUERY = "(max-width: 768px)";
 const SHARE_FEEDBACK_TIMEOUT_MS = 1400;
+const FOREGROUND_VISIBLE_CLASS = "foreground-visible";
 
 function noop() {}
 
@@ -458,6 +459,7 @@ export class ChromeController {
             return;
         }
 
+        this.documentRef.body?.classList.remove(FOREGROUND_VISIBLE_CLASS);
         this.setForegroundInteractive(false);
         this.dom.foreground.classList.remove("is-hiding");
         this.dom.foreground.style.opacity = "1";
@@ -470,6 +472,7 @@ export class ChromeController {
             return;
         }
 
+        this.documentRef.body?.classList.add(FOREGROUND_VISIBLE_CLASS);
         this.setForegroundInteractive(true);
         this.dom.foreground.classList.remove("is-hiding");
         this.dom.foreground.style.display = "initial";

@@ -324,6 +324,14 @@ body {
     opacity: 1;
 }
 
+body.foreground-visible #three-canvas,
+body.foreground-visible #d3-canvas-container,
+body.foreground-visible #view-toggle-container {
+    display: none !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
 #d3-canvas-container {
     --article-status-d3-offset-y: 200px;
     position: absolute;

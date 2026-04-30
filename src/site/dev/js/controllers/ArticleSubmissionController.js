@@ -438,7 +438,6 @@ export class ArticleSubmissionController {
             return;
         }
 
-        callMaybe(this.chrome.hidePageBackground);
         callMaybe(this.chrome.activateThreeCanvas);
         this.hideSubmitStatusMessage();
 
