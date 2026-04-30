@@ -235,6 +235,7 @@ class App {
         this.submitStatusMessage = document.getElementById("submit-status-message");
         this.submitStatusTimer = document.getElementById("submit-status-timer");
         this.supportedSites = document.getElementById("supported-sites");
+        this.supportedSiteDomains = this.getSupportedSiteDomains();
         this.threeCanvas = document.getElementById("three-canvas");
         this.d3CanvasContainer = document.getElementById("d3-canvas-container");
         this.d3Graph = new ArticleD3Graph("#d3-canvas", "#d3-canvas-container");
@@ -269,6 +270,8 @@ class App {
         this.supportMenuOpen = false;
         this.backgroundFocusLoopTimeout = null;
         this.backgroundRackFocusTimeout = null;
+        this.pageBackgroundImageLoadTimeout = null;
+        this.pageBackgroundImageLoadToken = 0;
         this.articleStatusView = null;
         this.articleStatusD3 = null;
         this.lastAmbientDependentLabelsVisible = null;
@@ -954,9 +957,7 @@ class App {
         const focusSplit = randomBetween(BACKGROUND_FOCUS_SPLIT_MIN, BACKGROUND_FOCUS_SPLIT_MAX);
         const focusSoftness = randomBetween(BACKGROUND_FOCUS_SOFTNESS_MIN, BACKGROUND_FOCUS_SOFTNESS_MAX);
 
-        this.pageBackgroundSharpLayer.style.backgroundImage = `url("${randomImage}")`;
         this.pageBackgroundSharpLayer.style.backgroundPosition = backgroundPosition;
-        this.pageBackgroundBlurLayer.style.backgroundImage = `url("${randomImage}")`;
         this.pageBackgroundBlurLayer.style.backgroundPosition = backgroundPosition;
         this.pageBackgroundPlane.style.setProperty(
             "--page-background-plane-transform",
@@ -974,7 +975,49 @@ class App {
             blurOpacity: BACKGROUND_BLUR_OPACITY_MAX,
             transitionMs: 0
         });
+        this.loadPageBackgroundImage(randomImage);
         this.startPageBackgroundFocusLoop();
+    }
+
+    loadPageBackgroundImage(imageUrl) {
+        if (this.pageBackgroundSharpLayer == null || this.pageBackgroundBlurLayer == null) {
+            return;
+        }
+
+        const token = ++this.pageBackgroundImageLoadToken;
+        const applyImage = () => {
+            if (token !== this.pageBackgroundImageLoadToken) {
+                return;
+            }
+
+            this.pageBackgroundSharpLayer.style.backgroundImage = `url("${imageUrl}")`;
+            this.pageBackgroundBlurLayer.style.backgroundImage = `url("${imageUrl}")`;
+        };
+
+        const startLoad = () => {
+            const image = new Image();
+            image.decoding = "async";
+            image.loading = "lazy";
+            image.onload = applyImage;
+            image.onerror = applyImage;
+            image.src = imageUrl;
+
+            if (image.complete) {
+                applyImage();
+            }
+        };
+
+        const scheduleLoad = () => {
+            clearTimeout(this.pageBackgroundImageLoadTimeout);
+            this.pageBackgroundImageLoadTimeout = window.setTimeout(startLoad, 0);
+        };
+
+        if (typeof window.requestIdleCallback === "function") {
+            window.requestIdleCallback(scheduleLoad, { timeout: 1500 });
+            return;
+        }
+
+        scheduleLoad();
     }
 
     hidePageBackground() {
@@ -1049,8 +1092,10 @@ class App {
 
         clearTimeout(this.backgroundRackFocusTimeout);
         clearTimeout(this.backgroundFocusLoopTimeout);
+        clearTimeout(this.pageBackgroundImageLoadTimeout);
         this.backgroundRackFocusTimeout = null;
         this.backgroundFocusLoopTimeout = null;
+        this.pageBackgroundImageLoadTimeout = null;
 
         this.applyPageBackgroundFocusState({
             sharpLayerBlur: 0,
@@ -1367,6 +1412,13 @@ class App {
         if (normalizedUrl == null) {
             this.foreground.style.display = "initial";
             this.showSubmitStatusMessage("Not a valid url");
+            this.updateSubmitButtonVisibility();
+            return;
+        }
+
+        if (!this.isSupportedSiteUrl(normalizedUrl)) {
+            this.showForeground();
+            this.showSubmitStatusMessage("Unsupported site");
             this.updateSubmitButtonVisibility();
             return;
         }
@@ -1735,6 +1787,31 @@ class App {
     normalizeHost(hostname) {
         const h = String(hostname).trim().toLowerCase();
         return h.startsWith("www.") ? h.slice(4) : h;
+    }
+
+    getSupportedSiteDomains() {
+        const supportedSitesText = String(this.supportedSites?.textContent ?? "").trim();
+        if (supportedSitesText.length === 0) {
+            return new Set();
+        }
+
+        const listText = supportedSitesText.replace(/^Supported sites:\s*/i, "");
+        const domains = listText
+            .split(/\s+/)
+            .map((value) => this.normalizeHost(value))
+            .filter((value) => value.length > 0);
+
+        return new Set(domains);
+    }
+
+    isSupportedSiteUrl(rawUrl) {
+        const normalizedUrl = this.normalizeUserUrl(rawUrl);
+        if (normalizedUrl == null) {
+            return false;
+        }
+
+        const hostname = this.normalizeHost(new URL(normalizedUrl).hostname);
+        return this.supportedSiteDomains.has(hostname);
     }
 
     normalizePathname(pathname) {

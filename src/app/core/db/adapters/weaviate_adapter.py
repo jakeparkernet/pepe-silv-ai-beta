@@ -7,6 +7,7 @@ from app.util.has_attribute import has_attribute
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 from datetime import datetime
 from app.core.db.weaviate import weaviate_wrapper as ww
+from app.util.common_owner_frontier import find_first_mutual_owner_frontier
 from app.util.get_value_safe import get_value_safe
 from app.util.normalize_letters_only import normalize_letters_only
 from .base_adapter import DatabaseAdapter
@@ -16,6 +17,7 @@ from ..exceptions import (
     NewsSiteNotFoundError, RelationshipNotFoundError, DatabaseError
 )
 import json
+import asyncio
 from collections import deque
 
 EntityOrId = Union["Entity", str]
@@ -729,12 +731,22 @@ class WeaviateAdapter(DatabaseAdapter):
             raise DatabaseError(f"Failed to find evidence by source {source}: {e}")
 
     async def get_parsed_evidence (self, evidence_list_raw) -> List[Evidence]:
-        evidence_list = extract_get_block(evidence_list_raw)
+        get_block = extract_get_block(evidence_list_raw)
+
+        if get_block is None:
+            return []
+        if isinstance(get_block, dict):
+            evidence_list = get_block.get("Evidence", []) or []
+        else:
+            evidence_list = get_block or []
 
         parsed_evidence_list = []
         for evidence in evidence_list:
+            if not isinstance(evidence, dict):
+                continue
             parsed_evidence = await self.get_evidence(evidence.get("uuid"))
-            parsed_evidence_list.append(parsed_evidence)
+            if parsed_evidence is not None:
+                parsed_evidence_list.append(parsed_evidence)
 
         return parsed_evidence_list
 
@@ -940,8 +952,18 @@ class WeaviateAdapter(DatabaseAdapter):
 
     async def get_relationship (self, id: str) -> Optional[Relationship]:
         """Get a relationship by ID"""
+        last_error = None
+        for attempt in range(1, 4):
+            try:
+                obj = await ww.fetch_full_object_by_id(self._client, "Relationship", id)
+                break
+            except Exception as e:
+                last_error = e
+                if attempt >= 3:
+                    raise DatabaseError(f"Failed to get relationship {id}: {e}")
+                await asyncio.sleep(0.5 * attempt)
+
         try:
-            obj = await ww.fetch_full_object_by_id(self._client, "Relationship", id)
             if not obj:
                 return None
             
@@ -1220,7 +1242,13 @@ class WeaviateAdapter(DatabaseAdapter):
             rid = row.get("uuid") if isinstance(row, dict) else None
             if not rid:
                 continue
-            parsed.append(await self.get_relationship(rid))
+            try:
+                parsed_relationship = await self.get_relationship(rid)
+            except Exception:
+                logger.warning("Skipping relationship %s after hydration failure", rid, exc_info=True)
+                continue
+            if parsed_relationship is not None:
+                parsed.append(parsed_relationship)
 
         return parsed
 
@@ -1242,26 +1270,23 @@ class WeaviateAdapter(DatabaseAdapter):
             entity_b_stub.deserialize(entity_b)
             entity_b = entity_b_stub
 
-        a_ownership_tree = await self.find_ownership_tree(entity_a)
-        b_ownership_tree = await self.find_ownership_tree(entity_b)
+        return await find_first_mutual_owner_frontier(
+            entity_a=entity_a,
+            entity_b=entity_b,
+            fetch_ownership_relationships=self.find_ownership_relationships,
+            fetch_entity=self.get_entity,
+            max_depth=max_depth,
+        )
 
-        relationships = a_ownership_tree["relationships"] | b_ownership_tree["relationships"]
-        owner_entities = a_ownership_tree["owner_entities"] | b_ownership_tree["owner_entities"]
-
-        common_keys = a_ownership_tree["owner_entities"].keys() & b_ownership_tree["owner_entities"].keys()
-        common_owners = {k: b_ownership_tree["owner_entities"][k] for k in common_keys}
-        
-        return {
-            "entity_a": entity_a,
-            "entity_b": entity_b,
-            "a_ownership_tree": a_ownership_tree,
-            "b_ownership_tree": b_ownership_tree,
-            "relationships": relationships,
-            "owner_entities": owner_entities,
-            "common_owners": common_owners,
-        }
-
-    async def find_ownership_tree (self, entity, ownership_tree = None):
+    async def find_ownership_tree (
+        self,
+        entity,
+        ownership_tree = None,
+        *,
+        max_depth: int = 50,
+        depth: int = 0,
+        visited: Optional[Set[str]] = None,
+    ):
 
         if ownership_tree is None:
             ownership_tree = {
@@ -1269,6 +1294,15 @@ class WeaviateAdapter(DatabaseAdapter):
                 "owner_entities": {},
                 "relationships": {}
             }
+
+        if visited is None:
+            visited = set()
+
+        entity_id = getattr(entity, "id", None)
+        if not entity_id or entity_id in visited or depth >= max_depth:
+            return ownership_tree
+
+        visited.add(entity_id)
 
         owner_relationships = await self.find_ownership_relationships(entity.id)
 
@@ -1282,9 +1316,17 @@ class WeaviateAdapter(DatabaseAdapter):
 
             if relationship.source_entity_id not in ownership_tree["owner_entities"].keys():
                 source_entity = await self.get_entity(relationship.source_entity_id)
+                if source_entity is None:
+                    continue
                 ownership_tree["owner_entities"][relationship.source_entity_id] = source_entity
 
-                await self.find_ownership_tree(source_entity, ownership_tree)
+                await self.find_ownership_tree(
+                    source_entity,
+                    ownership_tree,
+                    max_depth=max_depth,
+                    depth=depth + 1,
+                    visited=visited,
+                )
 
         return ownership_tree
 
@@ -1471,6 +1513,9 @@ def extract_get_block(graphql_result: Any) -> Dict[str, Any]:
 
     get_attr = getattr(graphql_result, "get", None)
     if isinstance(get_attr, dict):
+        if not get_attr:
+            return []
+
         return_val = next(iter(get_attr.values()))
 
         if return_val is None:

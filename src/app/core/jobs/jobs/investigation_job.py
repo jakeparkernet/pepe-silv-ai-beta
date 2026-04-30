@@ -33,6 +33,7 @@ from app.core.db.models import Evidence, Relationship, Entity
 from pydantic import PrivateAttr
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from app.config import NetConfig
+from app.util.common_owner_frontier import COMMON_OWNER_RULESET
 from app.util.markers import returns_awaitable
 from app.util.get_value_safe import get_value_safe
 from urllib.parse import urlsplit, urlunsplit
@@ -624,6 +625,14 @@ class InvestigationJob(Job):
                 "owner_entities": owner_entities,
                 "entity_a": news_entity.to_serializeable_object() if news_entity else None,
                 "entity_b": subject_entity.to_serializeable_object() if subject_entity else None,
+                "metadata": {
+                    "common_owner_ruleset": COMMON_OWNER_RULESET,
+                    "common_owner_strategy": "no common owner; depth-limited context",
+                    "max_depth": max_depth,
+                    "terminal_common_owner_ids": [],
+                    "exhausted": True,
+                    "created_at": datetime.now().isoformat(),
+                },
             },
             "final_ranking": {"entities": {}, "ranking": []},
             "top_owner": None
@@ -657,7 +666,8 @@ class InvestigationJob(Job):
                 "b_ownership_tree": serialize_ownership_tree(self._final_output_obj["common_owner_results"]["b_ownership_tree"]),
                 "relationships": serialize_base_dict(self._final_output_obj["common_owner_results"]["relationships"]),
                 "owner_entities": serialize_base_dict(self._final_output_obj["common_owner_results"]["owner_entities"]),
-                "common_owners": {}
+                "common_owners": {},
+                "metadata": self._final_output_obj["common_owner_results"].get("metadata", {})
             },
             "final_ranking": self._final_output_obj["final_ranking"],
             "top_owner": None
@@ -690,6 +700,18 @@ class InvestigationJob(Job):
             }).execute()
             logger.info(res.data)
             ownership_tree_id = res.data[0]["id"]
+        else:
+            res = (
+                supabase.table("ownership_trees")
+                .update({
+                    "ownership_tree": investigation_data_transportable["common_owner_results"],
+                    "investigation_data": investigation_data_transportable,
+                    "summary": f"No common owner found between {self._final_output_obj['article_subject']['name'] if self._final_output_obj['article_subject'] else '?'} and {self._final_output_obj['news_site']['name'] if self._final_output_obj['news_site'] else '?'}",
+                })
+                .eq("id", ownership_tree_id)
+                .execute()
+            )
+            logger.info(res.data)
 
         res = (
             supabase
@@ -1059,7 +1081,24 @@ class InvestigationJob(Job):
                 else:
                     investigation_data = raw_investigation_data
 
-                if investigation_data:
+                common_owner_results = (
+                    investigation_data.get("common_owner_results")
+                    if isinstance(investigation_data, dict)
+                    else None
+                ) or matched_row.get("ownership_tree", {})
+                if isinstance(common_owner_results, str):
+                    try:
+                        common_owner_results = json.loads(common_owner_results)
+                    except Exception:
+                        common_owner_results = {}
+
+                common_owner_metadata = (
+                    common_owner_results.get("metadata", {})
+                    if isinstance(common_owner_results, dict)
+                    else {}
+                )
+
+                if investigation_data and common_owner_metadata.get("common_owner_ruleset") == COMMON_OWNER_RULESET:
                     evidence_ids = self._collect_all_evidence_ids(investigation_data)
                     investigation_data["evidence"] = self._serialize_evidence(evidence_ids)
                     investigation_data["article_url"] = self._queue_url_key
@@ -1068,6 +1107,11 @@ class InvestigationJob(Job):
 
                     self._finalize_ownership_tree_and_complete()
                     return
+                elif investigation_data:
+                    logger.info(
+                        "Existing ownership_tree %s uses old or missing common-owner ruleset; recomputing",
+                        matched_tree_id,
+                    )
 
         self._common_owner_search_started = True
         self._common_owner_search_inflight = True
@@ -1326,8 +1370,12 @@ class InvestigationJob(Job):
         # Build reverse adjacency: entity -> list of entities that own it
         owners_of: Dict[str, List[str]] = {}
         for rel_id, rel in relationships.items():
-            source = rel.get("source_entity_id") or rel.get("source")
-            target = rel.get("target_entity_id") or rel.get("target")
+            if isinstance(rel, dict):
+                source = rel.get("source_entity_id") or rel.get("source")
+                target = rel.get("target_entity_id") or rel.get("target")
+            else:
+                source = getattr(rel, "source_entity_id", None) or getattr(rel, "source", None)
+                target = getattr(rel, "target_entity_id", None) or getattr(rel, "target", None)
             if not source or not target:
                 continue
             if target not in owners_of:
@@ -1623,7 +1671,8 @@ class InvestigationJob(Job):
                 "b_ownership_tree": serialize_ownership_tree(self._final_output_obj["common_owner_results"]["b_ownership_tree"]),
                 "relationships": serialize_base_dict(self._final_output_obj["common_owner_results"]["relationships"]),
                 "owner_entities": serialize_base_dict(self._final_output_obj["common_owner_results"]["owner_entities"]),
-                "common_owners": serialize_base_dict(self._final_output_obj["common_owner_results"]["common_owners"])
+                "common_owners": serialize_base_dict(self._final_output_obj["common_owner_results"]["common_owners"]),
+                "metadata": self._final_output_obj["common_owner_results"].get("metadata", {})
             },
             "final_ranking": self._final_output_obj["final_ranking"],
             "top_owner": self._final_output_obj["top_owner"]
@@ -1672,6 +1721,18 @@ class InvestigationJob(Job):
                     }).execute()
                     logger.info(res.data)
                     ownership_tree_id = res.data[0]["id"]
+                else:
+                    res = (
+                        supabase.table("ownership_trees")
+                        .update({
+                            "ownership_tree": investigation_data_transportable["common_owner_results"],
+                            "investigation_data": investigation_data_transportable,
+                            "summary": summary,
+                        })
+                        .eq("id", ownership_tree_id)
+                        .execute()
+                    )
+                    logger.info(res.data)
 
                 ownership_tree_update_res = (
                     supabase
