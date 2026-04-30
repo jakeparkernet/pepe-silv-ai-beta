@@ -114,9 +114,11 @@ export class ArticleSubmissionController {
         this.submitStatusPollDelayMs = constants.submitStatusPollDelayMs ?? DEFAULT_SUBMIT_STATUS_POLL_DELAY_MS;
 
         this.isManualUrlSubmitMode = false;
+        this.isSubmitInteractionLocked = false;
         this.pendingSubmitStatusResetToken = 0;
         this.articleStatusPollToken = 0;
         this.hasSubmittedValidArticleUrl = false;
+        this.windowRef.__pepeSubmitLocked = false;
     }
 
     normalizeUserUrl(raw) {
@@ -564,16 +566,40 @@ export class ArticleSubmissionController {
             this.isManualUrlSubmitMode = true;
         }
 
-        const shouldShowButton = hasValue && (this.isManualUrlSubmitMode || !isValidUrl);
+        const shouldShowButton =
+            !this.isSubmitInteractionLocked &&
+            hasValue &&
+            (this.isManualUrlSubmitMode || !isValidUrl);
 
         this.dom.submitButton.style.visibility = shouldShowButton ? "visible" : "hidden";
         this.dom.submitButtonContainer?.classList.toggle("is-visible", shouldShowButton);
+    }
+
+    setSubmitInteractionLocked(isLocked = true) {
+        this.isSubmitInteractionLocked = Boolean(isLocked);
+        this.windowRef.__pepeSubmitLocked = this.isSubmitInteractionLocked;
+
+        if (this.dom.urlInput != null) {
+            this.dom.urlInput.readOnly = this.isSubmitInteractionLocked;
+        }
+
+        if (this.dom.submitButtonContainer != null) {
+            this.dom.submitButtonContainer.classList.toggle("is-locked", this.isSubmitInteractionLocked);
+            this.dom.submitButtonContainer.setAttribute(
+                "aria-disabled",
+                this.isSubmitInteractionLocked ? "true" : "false"
+            );
+        }
+
+        this.updateSubmitButtonVisibility();
+        return this.isSubmitInteractionLocked;
     }
 
     resetUrlInputMode() {
         this.cancelPendingSubmitStatusReset();
         this.isManualUrlSubmitMode = false;
         this.hasSubmittedValidArticleUrl = false;
+        this.setSubmitInteractionLocked(false);
         this.hideSubmitStatusMessage();
         this.showSupportedSites();
         this.updateSubmitButtonVisibility();
@@ -604,6 +630,10 @@ export class ArticleSubmissionController {
 
     async onSubmitClicked(event) {
         event?.preventDefault?.();
+        if (this.isSubmitInteractionLocked) {
+            return false;
+        }
+
         this.stopArticleStatusPolling();
         this.hideArticleStatusProgress();
         this.hasSubmittedValidArticleUrl = false;
@@ -619,6 +649,7 @@ export class ArticleSubmissionController {
         if (normalizedUrl == null) {
             this.showForeground();
             this.showSubmitStatusMessage("Not a valid url");
+            this.setSubmitInteractionLocked(false);
             this.updateSubmitButtonVisibility();
             return;
         }
@@ -626,15 +657,28 @@ export class ArticleSubmissionController {
         if (!this.isSupportedSiteUrl(normalizedUrl)) {
             this.showForeground();
             this.showSubmitStatusMessage("Unsupported site");
+            this.setSubmitInteractionLocked(false);
             this.updateSubmitButtonVisibility();
             return;
         }
 
         this.hasSubmittedValidArticleUrl = true;
+        this.setSubmitInteractionLocked(true);
         callMaybe(this.chrome.updateAddressBarUrlParam, normalizedUrl);
         this.startForegroundFadeOut();
 
-        const articleObject = await this.api.getArticleByUrl?.(normalizedUrl);
+        let articleObject = null;
+        try {
+            articleObject = await this.api.getArticleByUrl?.(normalizedUrl);
+        } catch (error) {
+            this.logger?.error?.("[submit-flow] getArticleByUrl failed", error);
+            this.showForeground();
+            this.showSubmitStatusMessage("Could not load article status.");
+            this.setSubmitInteractionLocked(false);
+            this.updateSubmitButtonVisibility();
+            return;
+        }
+
         this.logger?.log?.("[submit-flow] getArticleByUrl resolved", {
             normalizedUrl,
             hasArticleObject: articleObject != null,
@@ -645,6 +689,7 @@ export class ArticleSubmissionController {
         if (articleObject == null) {
             this.showForeground();
             this.showSubmitStatusMessage("Could not load article status.");
+            this.setSubmitInteractionLocked(false);
             this.updateSubmitButtonVisibility();
             return;
         }
@@ -698,6 +743,7 @@ export class ArticleSubmissionController {
         if (status === "timeout") {
             this.showForeground();
             this.showSubmitStatusMessage(this.getQueueStatusMessage(articleObject));
+            this.setSubmitInteractionLocked(false);
             this.updateSubmitButtonVisibility();
             await this.scheduleSubmitStatusReset({ clearInput: true });
             return;
@@ -717,6 +763,7 @@ export class ArticleSubmissionController {
 
         if (isTerminalDeferred || isTerminalNotApplicable) {
             this.hideArticleStatusProgress();
+            this.setSubmitInteractionLocked(false);
             await this.scheduleSubmitStatusReset({ clearInput: true });
             return;
         }
@@ -761,6 +808,7 @@ export class ArticleSubmissionController {
             if (articleStatus === "timeout") {
                 this.stopArticleStatusPolling();
                 this.hideArticleStatusProgress();
+                this.setSubmitInteractionLocked(false);
                 await this.scheduleSubmitStatusReset({ clearInput: true });
                 return;
             }
@@ -793,6 +841,7 @@ export class ArticleSubmissionController {
             ) {
                 this.stopArticleStatusPolling();
                 this.hideArticleStatusProgress();
+                this.setSubmitInteractionLocked(false);
                 await this.scheduleSubmitStatusReset({ clearInput: true });
                 return;
             }

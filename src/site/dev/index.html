@@ -92,6 +92,10 @@
                     <div id="url-submit-button" role="button" tabindex="0" aria-label="Submit URL"></div>
                 </div>
             </form>
+            <div id="url-submit-loading-message" aria-live="polite" hidden>Submitted, loading</div>
+            <div id="url-submit-loading-bar" aria-hidden="true" hidden>
+                <div class="url-submit-loading-bar-fill"></div>
+            </div>
             <div id="supported-sites">Supported sites: nbcnews.com &nbsp; nypost.com &nbsp; theverge.com &nbsp; cnn.com &nbsp; washingtonpost.com &nbsp; nytimes.com &nbsp; foxnews.com &nbsp; abcnews.com</div>
             <div id="submit-status-message" aria-live="polite"></div>
             <div id="submit-status-timer" aria-hidden="true"></div>
@@ -100,6 +104,27 @@
     <script>
         (() => {
             const deferredHandlers = [];
+            let pendingEarlySubmit = null;
+            let loadingRevealTimer = null;
+            let loaderProgress = {
+                current: 0,
+                total: 0,
+                complete: false
+            };
+
+            const setUrlInputValue = (value) => {
+                const input = document.getElementById("url-input");
+                if (input != null) {
+                    input.value = value;
+                }
+            };
+
+            const getLoadingMessage = () => document.getElementById("url-submit-loading-message");
+            const getLoadingBar = () => document.getElementById("url-submit-loading-bar");
+            const getLoadingBarFill = () => document.querySelector("#url-submit-loading-bar .url-submit-loading-bar-fill");
+            const getUrlInputContainer = () => document.getElementById("url-input-container");
+            const isSubmitBlocked = () => pendingEarlySubmit != null || window.__pepeSubmitLocked === true;
+            const isLoaderComplete = () => loaderProgress.complete === true;
 
             const forwardWhenReady = (handler) => {
                 const app = window.__pepeApp;
@@ -109,6 +134,127 @@
                 }
 
                 deferredHandlers.push(handler);
+            };
+
+            const setLoadingMessageMode = () => {
+                const message = getLoadingMessage();
+                const loadingBar = getLoadingBar();
+                if (message == null || loadingBar == null) {
+                    return;
+                }
+
+                const isLightMode = window.localStorage?.getItem?.("visual-mode") === "d3";
+                message.classList.toggle("light-mode", isLightMode);
+                loadingBar.classList.toggle("light-mode", isLightMode);
+            };
+
+            const setLoadingBarProgress = ({ current, total } = loaderProgress) => {
+                const loadingBar = getLoadingBar();
+                const loadingBarFill = getLoadingBarFill();
+                if (loadingBar == null || loadingBarFill == null) {
+                    return;
+                }
+
+                const safeTotal = Math.max(0, Number(total) || 0);
+                const safeCurrent = Math.max(0, Number(current) || 0);
+                const percent = safeTotal > 0 ? Math.min(100, (safeCurrent / safeTotal) * 100) : 0;
+
+                loadingBar.dataset.current = String(safeCurrent);
+                loadingBar.dataset.total = String(safeTotal);
+                loadingBarFill.style.width = `${percent}%`;
+            };
+
+            const maybeReplayPendingEarlySubmit = () => {
+                if (!isLoaderComplete() || window.__pepeApp == null || pendingEarlySubmit == null) {
+                    return;
+                }
+
+                const pending = pendingEarlySubmit;
+                pendingEarlySubmit = null;
+
+                hideLoadingMessage();
+                setUrlInputValue(pending.submittedValue);
+                window.__pepeApp.onSubmitClicked({
+                    type: pending.trigger,
+                    preventDefault() {}
+                });
+            };
+
+            const showLoadingMessage = () => {
+                const inputContainer = getUrlInputContainer();
+                const message = getLoadingMessage();
+                const loadingBar = getLoadingBar();
+                if (inputContainer == null || message == null || loadingBar == null) {
+                    return;
+                }
+
+                setLoadingMessageMode();
+                setLoadingBarProgress();
+                inputContainer.classList.add("is-fading");
+
+                if (loadingRevealTimer != null) {
+                    window.clearTimeout(loadingRevealTimer);
+                }
+
+                loadingRevealTimer = window.setTimeout(() => {
+                    message.hidden = false;
+                    message.style.display = "flex";
+                    loadingBar.hidden = false;
+                    loadingBar.style.display = "block";
+                    loadingRevealTimer = null;
+                }, 220);
+            };
+
+            const hideLoadingMessage = () => {
+                const inputContainer = getUrlInputContainer();
+                const message = getLoadingMessage();
+                const loadingBar = getLoadingBar();
+                if (inputContainer == null || message == null || loadingBar == null) {
+                    return;
+                }
+
+                if (loadingRevealTimer != null) {
+                    window.clearTimeout(loadingRevealTimer);
+                    loadingRevealTimer = null;
+                }
+
+                inputContainer.classList.remove("is-fading");
+                message.hidden = true;
+                message.style.display = "none";
+                loadingBar.hidden = true;
+                loadingBar.style.display = "none";
+            };
+
+            window.addEventListener("pepe-loader-progress", (event) => {
+                const detail = event?.detail ?? {};
+                loaderProgress = {
+                    current: Number(detail.current) || 0,
+                    total: Number(detail.total) || 0,
+                    complete: detail.complete === true || (Number(detail.total) > 0 && Number(detail.current) >= Number(detail.total))
+                };
+                setLoadingBarProgress(loaderProgress);
+                maybeReplayPendingEarlySubmit();
+            });
+
+            const queueDeferredSubmit = (trigger) => {
+                const input = document.getElementById("url-input");
+                if (input == null || isSubmitBlocked()) {
+                    return;
+                }
+
+                const submittedValue = input.value;
+                if (submittedValue.trim().length === 0) {
+                    return;
+                }
+
+                showLoadingMessage();
+
+                pendingEarlySubmit = {
+                    submittedValue,
+                    trigger
+                };
+
+                maybeReplayPendingEarlySubmit();
             };
 
             const flushDeferredHandlers = () => {
@@ -125,6 +271,15 @@
 
             document.getElementById("url-input-container")?.addEventListener("submit", (event) => {
                 event.preventDefault();
+                if (isSubmitBlocked()) {
+                    return;
+                }
+
+                if (!isLoaderComplete() || window.__pepeApp == null) {
+                    queueDeferredSubmit("submit");
+                    return;
+                }
+
                 forwardWhenReady((app) => {
                     app.onSubmitClicked({
                         type: "submit",
@@ -133,7 +288,38 @@
                 });
             });
 
+            document.getElementById("url-input")?.addEventListener("keydown", (event) => {
+                if (event.key !== "Enter" || event.isComposing) {
+                    return;
+                }
+
+                const inputContainer = getUrlInputContainer();
+                if (inputContainer == null || isSubmitBlocked()) {
+                    return;
+                }
+
+                event.preventDefault();
+                if (!isLoaderComplete() || window.__pepeApp == null) {
+                    queueDeferredSubmit("submit");
+                    return;
+                }
+
+                inputContainer.requestSubmit?.() ?? inputContainer.dispatchEvent(new Event("submit", {
+                    bubbles: true,
+                    cancelable: true
+                }));
+            });
+
             document.getElementById("url-submit-button")?.addEventListener("pointerdown", (event) => {
+                if (isSubmitBlocked()) {
+                    event.preventDefault();
+                    return;
+                }
+
+                if (!isLoaderComplete() || window.__pepeApp == null) {
+                    return;
+                }
+
                 forwardWhenReady((app) => {
                     app.onSubmitButtonPointerDown(event);
                 });
@@ -141,6 +327,15 @@
 
             document.getElementById("url-submit-button")?.addEventListener("click", (event) => {
                 event.preventDefault();
+                if (isSubmitBlocked()) {
+                    return;
+                }
+
+                if (!isLoaderComplete() || window.__pepeApp == null) {
+                    queueDeferredSubmit("click");
+                    return;
+                }
+
                 forwardWhenReady((app) => {
                     app.onSubmitClicked({
                         type: "click",

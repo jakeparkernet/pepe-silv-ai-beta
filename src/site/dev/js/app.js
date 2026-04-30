@@ -58,6 +58,7 @@ let applyThreadMaterialConfig;
 let MATERIAL_GUI_CONFIGS = null;
 
 const LOADER_STAGE_EVENT = "pepe-loader-stage";
+const LOADER_PROGRESS_EVENT = "pepe-loader-progress";
 
 const TEXT_GUI_CONFIGS = {
     title: {
@@ -1493,6 +1494,16 @@ function bindVisualModules() {
 
 class Loader {
     static phases = LOADER_PHASES;
+    static progressState = {
+        current: 0,
+        total: 0
+    };
+
+    static countDescriptors(phases = Loader.phases) {
+        return phases.reduce((phaseTotal, phase) => {
+            return phaseTotal + phase.groups.reduce((groupTotal, group) => groupTotal + group.length, 0);
+        }, 0);
+    }
 
     static ensureModuleRoot() {
         const key = `apps_${performance.timeOrigin}`;
@@ -1537,6 +1548,18 @@ class Loader {
         }));
     }
 
+    static dispatchProgress(progress, details = {}) {
+        window.dispatchEvent(new CustomEvent(LOADER_PROGRESS_EVENT, {
+            detail: {
+                current: progress.current,
+                total: progress.total,
+                phase: progress.phase ?? null,
+                path: progress.path ?? null,
+                ...details
+            }
+        }));
+    }
+
     static async loadScript(src, globalName = null) {
         if (globalName != null && window[globalName] != null) {
             return;
@@ -1574,6 +1597,13 @@ class Loader {
 
     static async load(phases = Loader.phases) {
         const modulesRoot = Loader.ensureModuleRoot();
+        const progress = Loader.progressState;
+        progress.total = Loader.countDescriptors(Loader.phases);
+        if (progress.current === 0) {
+            Loader.dispatchProgress(progress, {
+                started: true
+            });
+        }
 
         for (const phase of phases) {
             for (const group of phase.groups) {
@@ -1588,6 +1618,10 @@ class Loader {
                         }
 
                         Loader.storeValue(modulesRoot, descriptor.storePath ?? `thirdparty.${globalName}`, globalName, globalValue);
+                        progress.current += 1;
+                        progress.phase = phase.name;
+                        progress.path = descriptor.path;
+                        Loader.dispatchProgress(progress);
                         return;
                     }
 
@@ -1612,6 +1646,10 @@ class Loader {
                     }
 
                     Loader.storeModule(modulesRoot, descriptor.path, exportMap);
+                    progress.current += 1;
+                    progress.phase = phase.name;
+                    progress.path = descriptor.path;
+                    Loader.dispatchProgress(progress);
                 }));
             }
 
@@ -1634,9 +1672,17 @@ class Loader {
                     };
 
             Loader.dispatchStage(phase.name, {
-                available
+                available,
+                progress: {
+                    current: progress.current,
+                    total: progress.total
+                }
             });
         }
+
+        Loader.dispatchProgress(progress, {
+            complete: true
+        });
     }
 }
 
