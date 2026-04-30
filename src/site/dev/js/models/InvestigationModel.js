@@ -1,11 +1,4 @@
-import { JobModel } from "./JobModel.js";
-import { FindOwnersModel } from "./FindOwnersModel.js";
-import { ArticleAnalysisModel } from "./ArticleAnalysisModel.js";
-import { FindArticleEntitiesModel } from "./FindArticleEntitiesModel.js";
-import { IdentifyNewsSiteModel } from "./IdentifyNewsSiteModel.js";
 import { EntityModel } from "./EntityModel.js";
-import { Node } from "../models/Node.js";
-import { OwnershipTreeModel } from "../models/OwnershipTreeModel.js";
 
 class InvestigationModel {
     constructor(investigationData) {

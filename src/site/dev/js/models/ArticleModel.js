@@ -1,9 +1,6 @@
 import { InvestigationModel } from "./InvestigationModel.js";
 import { OwnershipTreeModel } from "./OwnershipTreeModel.js";
-import { EntityModel } from "./EntityModel.js";
 import { NewsSiteModel } from "./NewsSiteModel.js";
-import { RelationshipModel } from "./RelationshipModel.js";
-import { findRelationship } from "../utils/objectUtils.js";
 
 class ArticleModel {
     constructor (articleData) {

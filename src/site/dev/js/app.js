@@ -222,7 +222,6 @@ class App {
 
         window[`apps_${performance.timeOrigin}`].pepe = this;
 
-        this.investigationView = ViewPool.getView("investigation");
         this.foreground = document.getElementById("foreground");
         this.pageBackground = document.getElementById("page-background");
         this.pageBackgroundPlane = this.pageBackground?.querySelector(".page-background-plane") ?? null;
