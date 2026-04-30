@@ -324,9 +324,9 @@ body {
     opacity: 1;
 }
 
-body.foreground-visible #three-canvas,
-body.foreground-visible #d3-canvas-container,
-body.foreground-visible #view-toggle-container {
+body.foreground-search-visible #three-canvas,
+body.foreground-search-visible #d3-canvas-container,
+body.foreground-search-visible #view-toggle-container {
     display: none !important;
     opacity: 0 !important;
     pointer-events: none !important;

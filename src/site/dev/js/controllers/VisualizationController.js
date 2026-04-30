@@ -446,7 +446,8 @@ class VisualizationController {
             status === "deferred" ||
             status === "not applicable" ||
             status === "not-applicable" ||
-            status === "timeout"
+            status === "timeout" ||
+            status === "failed"
         ) {
             this.hideArticleStatusProgress();
             return false;

@@ -2,6 +2,9 @@ const DEFAULT_FOREGROUND_FADE_OUT_MS = 400;
 const DEFAULT_SUBMIT_STATUS_FADE_MS = 200;
 const DEFAULT_SUBMIT_STATUS_INPUT_CLEAR_DELAY_MS = 5000;
 const DEFAULT_SUBMIT_STATUS_POLL_DELAY_MS = 400;
+const NOT_APPLICABLE_STATUS_MESSAGE = "Article not about a specific company or product";
+const FAILED_STATUS_MESSAGE = "Article research failed, come back later";
+const FOREGROUND_SEARCH_VISIBLE_CLASS = "foreground-search-visible";
 
 function noop() {}
 
@@ -174,11 +177,15 @@ export class ArticleSubmissionController {
         }
 
         if (status === "timeout") {
-            return "This article took too long to investigate. Please try again later.";
+            return FAILED_STATUS_MESSAGE;
+        }
+
+        if (status === "failed") {
+            return FAILED_STATUS_MESSAGE;
         }
 
         if (status === "not applicable" || status === "not-applicable") {
-            return article?.applicability_result?.reason ?? "This article was marked as not applicable.";
+            return NOT_APPLICABLE_STATUS_MESSAGE;
         }
 
         if (status.startsWith("prepass:")) {
@@ -327,6 +334,10 @@ export class ArticleSubmissionController {
         }
 
         this.dom.foreground.style.pointerEvents = isInteractive ? "auto" : "none";
+    }
+
+    setForegroundSearchVisible(isVisible = true) {
+        this.documentRef.body?.classList.toggle(FOREGROUND_SEARCH_VISIBLE_CLASS, Boolean(isVisible));
     }
 
     hideForeground() {
@@ -598,6 +609,7 @@ export class ArticleSubmissionController {
         this.cancelPendingSubmitStatusReset();
         this.isManualUrlSubmitMode = false;
         this.hasSubmittedValidArticleUrl = false;
+        this.setForegroundSearchVisible(true);
         this.setSubmitInteractionLocked(false);
         this.hideSubmitStatusMessage();
         this.showSupportedSites();
@@ -646,6 +658,7 @@ export class ArticleSubmissionController {
         });
 
         if (normalizedUrl == null) {
+            this.setForegroundSearchVisible(true);
             this.showForeground();
             this.showSubmitStatusMessage("Not a valid url");
             this.setSubmitInteractionLocked(false);
@@ -654,6 +667,7 @@ export class ArticleSubmissionController {
         }
 
         if (!this.isSupportedSiteUrl(normalizedUrl)) {
+            this.setForegroundSearchVisible(true);
             this.showForeground();
             this.showSubmitStatusMessage("Unsupported site");
             this.setSubmitInteractionLocked(false);
@@ -671,6 +685,7 @@ export class ArticleSubmissionController {
             articleObject = await this.api.getArticleByUrl?.(normalizedUrl);
         } catch (error) {
             this.logger?.error?.("[submit-flow] getArticleByUrl failed", error);
+            this.setForegroundSearchVisible(true);
             this.showForeground();
             this.showSubmitStatusMessage("Could not load article status.");
             this.setSubmitInteractionLocked(false);
@@ -686,6 +701,7 @@ export class ArticleSubmissionController {
         });
 
         if (articleObject == null) {
+            this.setForegroundSearchVisible(true);
             this.showForeground();
             this.showSubmitStatusMessage("Could not load article status.");
             this.setSubmitInteractionLocked(false);
@@ -703,13 +719,9 @@ export class ArticleSubmissionController {
             articleStatus === "not applicable";
 
         if (isNotApplicableArticle) {
-            const summaryText =
-                articleObject?.ownershipTreeObj?.summary ??
-                articleObject?.article?.applicability_result?.reason ??
-                "Not applicable.";
-
+            this.setForegroundSearchVisible(true);
             this.showForeground();
-            this.showSubmitStatusMessage(summaryText);
+            this.showSubmitStatusMessage(NOT_APPLICABLE_STATUS_MESSAGE);
             await this.scheduleSubmitStatusReset({ clearInput: true });
             return;
         }
@@ -739,7 +751,8 @@ export class ArticleSubmissionController {
         });
 
         const status = String(articleObject?.article?.status ?? "").toLowerCase();
-        if (status === "timeout") {
+        if (status === "timeout" || status === "failed") {
+            this.setForegroundSearchVisible(true);
             this.showForeground();
             this.showSubmitStatusMessage(this.getQueueStatusMessage(articleObject));
             this.setSubmitInteractionLocked(false);
@@ -749,6 +762,7 @@ export class ArticleSubmissionController {
         }
 
         this.showForeground();
+        this.setForegroundSearchVisible(false);
         this.applyArticleStatusCameraZoom();
 
         const initialMessage = this.getQueueStatusMessage(articleObject);
@@ -761,6 +775,7 @@ export class ArticleSubmissionController {
             status === "not-applicable" || status === "not applicable";
 
         if (isTerminalDeferred || isTerminalNotApplicable) {
+            this.setForegroundSearchVisible(true);
             this.hideArticleStatusProgress();
             this.setSubmitInteractionLocked(false);
             await this.scheduleSubmitStatusReset({ clearInput: true });
@@ -804,8 +819,9 @@ export class ArticleSubmissionController {
             await this.updateArticleStatusProgress(articleObject);
 
             const articleStatus = String(articleObject?.article?.status ?? "").toLowerCase();
-            if (articleStatus === "timeout") {
+            if (articleStatus === "timeout" || articleStatus === "failed") {
                 this.stopArticleStatusPolling();
+                this.setForegroundSearchVisible(true);
                 this.hideArticleStatusProgress();
                 this.setSubmitInteractionLocked(false);
                 await this.scheduleSubmitStatusReset({ clearInput: true });
@@ -839,6 +855,7 @@ export class ArticleSubmissionController {
                 articleStatus === "not-applicable"
             ) {
                 this.stopArticleStatusPolling();
+                this.setForegroundSearchVisible(true);
                 this.hideArticleStatusProgress();
                 this.setSubmitInteractionLocked(false);
                 await this.scheduleSubmitStatusReset({ clearInput: true });

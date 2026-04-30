@@ -161,6 +161,7 @@ class App {
         this.evidence = {};
         this.articleView = null;
         this.pendingResolvedArticle = null;
+        this.pendingArticleStatus = null;
 
         this.apiService = new ArticleApiService({
             supportedSitesText: this.supportedSites?.textContent ?? "",
@@ -418,6 +419,7 @@ class App {
             three: true
         });
         this.chromeController.applyInitialVisualizationMode();
+        this.renderPendingArticleStatusProgress();
         this.renderPendingResolvedArticle();
     }
 
@@ -461,7 +463,23 @@ class App {
 
         const pending = this.pendingResolvedArticle;
         this.pendingResolvedArticle = null;
+        this.pendingArticleStatus = null;
         void this.handleResolvedArticle(pending.articleObject, pending.meta);
+    }
+
+    renderPendingArticleStatusProgress() {
+        if (this.pendingArticleStatus == null) {
+            return false;
+        }
+
+        if (!this.runtimeState.three || !this.runtimeState.d3) {
+            return false;
+        }
+
+        const pending = this.pendingArticleStatus;
+        this.pendingArticleStatus = null;
+        void this.visualizationController?.updateArticleStatusProgress?.(pending);
+        return true;
     }
 
     exposeGlobalApp() {
@@ -881,14 +899,25 @@ class App {
     }
 
     ensureArticleStatusViews() {
+        if (!this.runtimeState.d3 || !this.runtimeState.three) {
+            return false;
+        }
+
         return this.visualizationController?.ensureArticleStatusViews?.();
     }
 
     hideArticleStatusProgress() {
+        this.pendingArticleStatus = null;
         return this.visualizationController?.hideArticleStatusProgress?.();
     }
 
     updateArticleStatusProgress(articleObject) {
+        if (!this.runtimeState.d3 || !this.runtimeState.three) {
+            this.pendingArticleStatus = articleObject;
+            return false;
+        }
+
+        this.pendingArticleStatus = articleObject;
         return this.visualizationController?.updateArticleStatusProgress?.(articleObject);
     }
 
@@ -1028,6 +1057,7 @@ class App {
             return true;
         }
 
+        this.pendingArticleStatus = null;
         this.entities = {};
         this.relationships = {};
         this.evidenceIds = new Set();
