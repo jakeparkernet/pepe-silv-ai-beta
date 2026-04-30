@@ -263,6 +263,7 @@ class App {
                 onResolvedArticle: (articleObject, meta) => this.handleResolvedArticle(articleObject, meta),
                 onAfterResolvedArticle: async () => {
                     await this.submissionController.fadeOutForeground();
+                    this.hidePageBackground();
                     this.stopPageBackgroundFocusLoop();
                 }
             }
