@@ -542,7 +542,7 @@ body.foreground-search-visible #view-toggle-container {
 }
 
 #support-buttons {
-    --support-button-height: 30px;
+    --support-button-height: 16px;
     --support-buttons-bottom: 8px;
     --support-buttons-scale: 1;
     position: absolute;

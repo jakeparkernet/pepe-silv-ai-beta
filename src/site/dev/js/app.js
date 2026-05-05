@@ -1100,14 +1100,23 @@ class App {
         }
 
         const articleUrl = articleModel.url ?? articleObject?.article?.url;
-        if (articleUrl && this.articleUrlDisplay) {
+        if (this.articleUrlDisplay) {
             this.articleUrlDisplay.innerHTML = "";
+        }
+
+        if (articleUrl && this.articleUrlDisplay) {
             const link = this.documentRef.createElement("a");
             link.href = articleUrl.startsWith("http") ? articleUrl : `https://${articleUrl}`;
             link.target = "_blank";
             link.rel = "noopener noreferrer";
             link.textContent = articleUrl;
             this.articleUrlDisplay.appendChild(link);
+        }
+
+        if (articleUrl) {
+            this.chromeController?.showArticleUrlDisplay?.();
+        } else {
+            this.chromeController?.hideArticleUrlDisplay?.();
         }
 
         const summaryText = articleObject?.ownershipTreeObj?.summary ?? articleObject?.ownership_tree?.summary;

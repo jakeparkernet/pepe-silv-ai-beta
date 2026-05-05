@@ -101,6 +101,7 @@ export class ChromeController {
             return;
         }
 
+        this.hideArticleUrlDisplay();
         this.hideNewSearchContainer();
         this.hideShareContainer();
         this.hideSupportMenu();
@@ -327,6 +328,26 @@ export class ChromeController {
         this.dom.newSearchContainer?.classList.remove("is-visible");
     }
 
+    showArticleUrlDisplay() {
+        if (this.dom.articleUrlDisplay == null) {
+            return;
+        }
+
+        const hasContent = this.dom.articleUrlDisplay.childElementCount > 0 || this.dom.articleUrlDisplay.textContent?.trim();
+        const shouldShow = Boolean(hasContent);
+        this.dom.articleUrlDisplay.classList.toggle("is-visible", shouldShow);
+        this.dom.articleUrlDisplay.setAttribute("aria-hidden", shouldShow ? "false" : "true");
+    }
+
+    hideArticleUrlDisplay() {
+        if (this.dom.articleUrlDisplay == null) {
+            return;
+        }
+
+        this.dom.articleUrlDisplay.classList.remove("is-visible");
+        this.dom.articleUrlDisplay.setAttribute("aria-hidden", "true");
+    }
+
     showShareContainer() {
         this.dom.shareContainer?.classList.add("is-visible");
     }
@@ -464,6 +485,7 @@ export class ChromeController {
         this.dom.foreground.classList.remove("is-hiding");
         this.dom.foreground.style.opacity = "1";
         this.dom.foreground.style.display = "none";
+        this.showArticleUrlDisplay();
         this.callbacks.onForegroundChange?.(false);
     }
 
@@ -477,6 +499,7 @@ export class ChromeController {
         this.dom.foreground.classList.remove("is-hiding");
         this.dom.foreground.style.display = "initial";
         this.dom.foreground.style.opacity = "1";
+        this.hideArticleUrlDisplay();
         this.hideNewSearchContainer();
         this.hideShareContainer();
         this.callbacks.onForegroundChange?.(true);
