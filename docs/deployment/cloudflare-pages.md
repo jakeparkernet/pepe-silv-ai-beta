@@ -87,6 +87,8 @@ Set these Supabase Edge Function secrets for production:
 supabase secrets set ALLOWED_ORIGINS="https://pepesilv.ai,https://www.pepesilv.ai"
 supabase secrets set SITE_URL="https://pepesilv.ai"
 supabase secrets set PUBLIC_SITE_URL="https://pepesilv.ai"
+supabase secrets set CLERK_AUTHORIZED_PARTIES="https://pepesilv.ai,https://www.pepesilv.ai"
+supabase secrets set CLERK_JWT_KEY="..."
 ```
 
 Keep the existing production values for:
@@ -106,10 +108,11 @@ Keep the existing production values for:
 - `GET_LLM_RESPONSE_ARN` or `GET_LLM_RESPONSE_URL`
 - `WEAVIATE_URL`
 - `WEAVIATE_APIKEY` or `WEAVIATE_API_KEY`
+- `CLERK_SECRET_KEY` if `CLERK_JWT_KEY` is not used
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
 
-Supabase Auth should use `https://pepesilv.ai` as the site URL and allow redirects for both `https://pepesilv.ai` and `https://www.pepesilv.ai`.
+Supabase Auth should use `https://pepesilv.ai` as the site URL, allow redirects for both `https://pepesilv.ai` and `https://www.pepesilv.ai`, and enable Clerk as a third-party auth provider using the Clerk domain from the Clerk Supabase setup page. Cloudflare Pages also needs `PEPE_CLERK_PUBLISHABLE_KEY` and `PEPE_CLERK_FRONTEND_API_URL` set as build environment variables so `runtime-config.js` is generated with the public Clerk browser configuration.
 
 Stripe webhook endpoint:
 
@@ -125,5 +128,5 @@ After DNS and deploy:
 2. Submit a supported article URL and confirm `get-or-enqueue` creates or reads `article_queue`.
 3. Confirm `investigation_start` dispatches Fly work and writes an `ownership_trees` row.
 4. Load an already-complete article and confirm `get-evidence-batch` returns evidence.
-5. Sign in, create a Stripe checkout session, complete payment, and confirm `credit_ledger` receives the purchase from `stripe-webhook`.
+5. Sign in through Clerk, create a Stripe checkout session, complete payment, and confirm `credit_ledger` receives the purchase from `stripe-webhook`.
 6. Test company-pair lookup and research dispatch with a signed-in user.

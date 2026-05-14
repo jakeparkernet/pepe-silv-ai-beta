@@ -264,6 +264,9 @@ The repo uses a fairly large environment surface. The list below focuses on vari
 
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
+- `CLERK_JWT_KEY`
+- `CLERK_SECRET_KEY` (optional fallback if `CLERK_JWT_KEY` is not set)
+- `CLERK_AUTHORIZED_PARTIES` (comma-separated allowed origins)
 - `INTERNAL_EDGE_API_KEY`
 - `ALLOWED_ORIGINS`
 - `CHROME_EXTENSION_ID`
@@ -291,6 +294,15 @@ The repo uses a fairly large environment surface. The list below focuses on vari
 - `STRIPE_WEBHOOK_SECRET`
 - `SITE_URL`
 - `PUBLIC_SITE_URL`
+
+### Website Clerk Settings
+
+The static site reads these browser globals before `js/app.js` loads. For Cloudflare Pages, the build script writes them from same-named build environment variables:
+
+- `window.PEPE_CLERK_PUBLISHABLE_KEY`
+- `window.PEPE_CLERK_FRONTEND_API_URL`
+
+Supabase third-party Auth also needs Clerk enabled so RLS policies can compare Clerk JWT `sub` claims against credit table `user_id` values.
 
 ### Company Pair Credits Settings
 

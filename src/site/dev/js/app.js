@@ -107,7 +107,6 @@ class App {
         this.onUrlInputPasted = this.onUrlInputPasted.bind(this);
         this.handleResolvedArticle = this.handleResolvedArticle.bind(this);
         this.onLoaderStage = this.onLoaderStage.bind(this);
-        this.onAuthFormSubmit = this.onAuthFormSubmit.bind(this);
 
         this.foreground = document.getElementById("foreground");
         this.pageBackground = document.getElementById("page-background");
@@ -155,21 +154,17 @@ class App {
         this.summaryBanner = document.getElementById("summary-banner");
         this.pageTitle = document.getElementById("page-title");
         this.attribution = document.getElementById("attribution");
+        this.authLinks = document.getElementById("auth-links");
         this.authSignInLink = document.getElementById("auth-sign-in-link");
         this.authSignUpLink = document.getElementById("auth-sign-up-link");
-        this.authSignOutLink = document.getElementById("auth-sign-out-link");
         this.authLinksSeparator = document.getElementById("auth-links-separator");
-        this.authModal = document.getElementById("auth-modal");
-        this.authModalBackdrop = document.getElementById("auth-modal-backdrop");
-        this.authCloseButton = document.getElementById("auth-close-button");
-        this.authCardTitle = document.getElementById("auth-card-title");
-        this.authForm = document.getElementById("auth-form");
-        this.authEmailInput = document.getElementById("auth-email-input");
-        this.authPasswordInput = document.getElementById("auth-password-input");
-        this.authSubmitButton = document.getElementById("auth-submit-button");
+        this.authCreditBalance = document.getElementById("auth-credit-balance");
         this.authBuyCreditsButton = document.getElementById("auth-buy-credits-button");
         this.authStatusMessage = document.getElementById("auth-status-message");
-        this.authMode = "signin";
+        this.clerkUserButton = document.getElementById("clerk-user-button");
+        this.clerkUserButtonMounted = false;
+        this.authListenerUnsubscribe = null;
+        this.signupButtonsEnabled = new URL(this.windowRef.location.href).searchParams.get("signup") === "true";
 
         this.loaderState = {
             retrieval: false,
@@ -280,7 +275,8 @@ class App {
                 lookupCompanyPair: (payload) => this.apiService.lookupCompanyPair(payload),
                 startCompanyPairResearch: (payload) => this.apiService.startCompanyPairResearch(payload),
                 createCheckoutSession: (payload) => this.apiService.createCheckoutSession(payload),
-                getCurrentUser: () => this.apiService.getCurrentUser()
+                getCurrentUser: () => this.apiService.getCurrentUser(),
+                openSignIn: () => this.openAuthModal("signin")
             },
             chrome: {
                 showForeground: () => this.chromeController.showForeground(),
@@ -324,7 +320,8 @@ class App {
         this.windowRef.addEventListener(LOADER_STAGE_EVENT, this.onLoaderStage);
         this.pageBackgroundController.initialize();
         this.chromeController.initialize();
-        this.initializeAuthUi();
+        void this.initializeAuthUi();
+        this.handleCreditReturnParam();
         this.setVisualizationAvailability({ d3: false, three: false });
         this.bindRuntimeListeners();
         this.updateViewportMetrics();
@@ -333,82 +330,76 @@ class App {
         this.handleInitialUrlParam();
     }
 
-    initializeAuthUi() {
-        this.authSignInLink?.addEventListener("click", () => this.openAuthModal("signin"));
-        this.authSignUpLink?.addEventListener("click", () => this.openAuthModal("signup"));
-        this.authSignOutLink?.addEventListener("click", async () => {
-            await this.apiService.signOut();
-            await this.updateAuthLinks();
+    async initializeAuthUi() {
+        this.authSignInLink?.addEventListener("click", () => {
+            void this.openAuthModal("signin");
         });
-        this.authCloseButton?.addEventListener("click", () => this.closeAuthModal());
-        this.authModalBackdrop?.addEventListener("click", () => this.closeAuthModal());
-        this.authForm?.addEventListener("submit", this.onAuthFormSubmit);
-        this.authBuyCreditsButton?.addEventListener("click", () => this.buyCredits());
-
-        const supabase = this.apiService.getSupabaseClient();
-        supabase.auth.onAuthStateChange?.(() => {
-            void this.updateAuthLinks();
+        this.authSignUpLink?.addEventListener("click", () => {
+            void this.openAuthModal("signup");
         });
-        void this.updateAuthLinks();
-    }
+        this.authBuyCreditsButton?.addEventListener("click", () => {
+            void this.buyCredits();
+        });
 
-    openAuthModal(mode = "signin") {
-        this.authMode = mode === "signup" ? "signup" : "signin";
-        if (this.authCardTitle != null) {
-            this.authCardTitle.textContent = this.authMode === "signup" ? "Sign up" : "Sign in";
-        }
-        if (this.authSubmitButton != null) {
-            this.authSubmitButton.textContent = this.authMode === "signup" ? "Sign up" : "Sign in";
-        }
-        if (this.authStatusMessage != null) {
-            this.authStatusMessage.textContent = "";
-        }
-        if (this.authModal != null) {
-            this.authModal.hidden = false;
-            this.authModal.setAttribute("aria-hidden", "false");
-        }
-        this.authEmailInput?.focus?.();
-    }
-
-    closeAuthModal() {
-        if (this.authModal == null) {
-            return;
+        try {
+            await this.apiService.initializeClerk();
+            this.authListenerUnsubscribe = await this.apiService.addAuthListener(() => {
+                void this.updateAuthLinks();
+            });
+        } catch (error) {
+            console.warn("[auth] Clerk is not available", error);
+            this.setAuthStatusMessage("Account sign-in is not configured.");
         }
 
-        this.authModal.hidden = true;
-        this.authModal.setAttribute("aria-hidden", "true");
-    }
-
-    async onAuthFormSubmit(event) {
-        event?.preventDefault?.();
-        const email = this.authEmailInput?.value?.trim() ?? "";
-        const password = this.authPasswordInput?.value ?? "";
-
-        if (!email || !password) {
-            if (this.authStatusMessage != null) {
-                this.authStatusMessage.textContent = "Email and password are required.";
-            }
-            return;
-        }
-
-        const authMethod = this.authMode === "signup"
-            ? this.apiService.signUpWithPassword.bind(this.apiService)
-            : this.apiService.signInWithPassword.bind(this.apiService);
-
-        const { error } = await authMethod({ email, password });
-        if (error) {
-            if (this.authStatusMessage != null) {
-                this.authStatusMessage.textContent = error.message ?? "Authentication failed.";
-            }
-            return;
-        }
-
-        if (this.authStatusMessage != null) {
-            this.authStatusMessage.textContent = this.authMode === "signup"
-                ? "Account created. Check your email if confirmation is required."
-                : "Signed in.";
-        }
         await this.updateAuthLinks();
+    }
+
+    setAuthStatusMessage(message = "") {
+        if (this.authStatusMessage == null) {
+            return;
+        }
+
+        this.authStatusMessage.textContent = message;
+        this.authStatusMessage.hidden = message.length === 0;
+    }
+
+    async openAuthModal(mode = "signin") {
+        this.setAuthStatusMessage("");
+        try {
+            const opened = await this.apiService.openAuth(mode);
+            if (!opened) {
+                this.setAuthStatusMessage("Account sign-in is not configured.");
+            }
+            return opened;
+        } catch (error) {
+            console.warn("[auth] could not open Clerk auth", error);
+            this.setAuthStatusMessage("Could not open account sign-in.");
+            return false;
+        }
+    }
+
+    async updateCreditBalance(user) {
+        if (this.authCreditBalance == null) {
+            return;
+        }
+
+        if (user == null) {
+            this.authCreditBalance.hidden = true;
+            this.authCreditBalance.textContent = "";
+            return;
+        }
+
+        const { data, error } = await this.apiService.getCreditBalance();
+        if (error) {
+            console.warn("[credits] could not read balance", error);
+            this.authCreditBalance.hidden = false;
+            this.authCreditBalance.textContent = "Credits unavailable";
+            return;
+        }
+
+        const available = Number(data?.available_balance_usd ?? 0);
+        this.authCreditBalance.hidden = false;
+        this.authCreditBalance.textContent = `Credits $${available.toFixed(2)}`;
     }
 
     async updateAuthLinks() {
@@ -420,36 +411,64 @@ class App {
             console.warn("[auth] could not read current user", error);
         }
         const isSignedIn = user != null;
+        const showSignupButtons = this.signupButtonsEnabled && !isSignedIn;
 
         if (this.authSignInLink != null) {
-            this.authSignInLink.hidden = isSignedIn;
+            this.authSignInLink.hidden = !showSignupButtons;
         }
         if (this.authSignUpLink != null) {
-            this.authSignUpLink.hidden = isSignedIn;
+            this.authSignUpLink.hidden = !showSignupButtons;
         }
         if (this.authLinksSeparator != null) {
-            this.authLinksSeparator.hidden = isSignedIn;
+            this.authLinksSeparator.hidden = !showSignupButtons;
         }
-        if (this.authSignOutLink != null) {
-            this.authSignOutLink.hidden = !isSignedIn;
-            this.authSignOutLink.textContent = isSignedIn ? `Sign out ${user.email ?? ""}`.trim() : "Sign out";
+        if (this.authBuyCreditsButton != null) {
+            this.authBuyCreditsButton.hidden = !isSignedIn;
         }
+        if (this.clerkUserButton != null) {
+            this.clerkUserButton.hidden = !isSignedIn;
+            if (isSignedIn && !this.clerkUserButtonMounted) {
+                this.clerkUserButtonMounted = await this.apiService.mountUserButton(this.clerkUserButton);
+            }
+        }
+
+        await this.updateCreditBalance(user);
     }
 
-    async buyCredits({ amountUsd = 10 } = {}) {
-        const { data, error } = await this.apiService.createCheckoutSession({ amountUsd });
+    async buyCredits({ packId = this.apiService.creditPackId } = {}) {
+        this.setAuthStatusMessage("");
+        const { data, error } = await this.apiService.createCheckoutSession({ packId });
         if (error || !data?.checkout_url) {
-            if (this.authStatusMessage != null) {
-                this.authStatusMessage.textContent = error?.message ?? data?.error ?? "Could not start checkout.";
-            }
-            if (error?.context?.status === 401) {
-                this.openAuthModal("signin");
+            const status = error?.context?.status ?? data?.status ?? null;
+            this.setAuthStatusMessage(error?.message ?? data?.error ?? "Could not start checkout.");
+            if (status === 401) {
+                await this.openAuthModal("signin");
             }
             return false;
         }
 
         this.windowRef.location.assign(data.checkout_url);
         return true;
+    }
+
+    handleCreditReturnParam() {
+        const url = new URL(this.windowRef.location.href);
+        const creditStatus = url.searchParams.get("credits");
+        if (creditStatus !== "success" && creditStatus !== "cancelled") {
+            return;
+        }
+
+        if (creditStatus === "success") {
+            this.setAuthStatusMessage("Credit purchase complete. Balance will update shortly.");
+            this.windowRef.setTimeout(() => {
+                void this.updateAuthLinks();
+            }, 2500);
+        } else {
+            this.setAuthStatusMessage("Credit purchase cancelled.");
+        }
+
+        url.searchParams.delete("credits");
+        this.windowRef.history.replaceState({}, "", url.toString());
     }
 
     onLoaderStage(event) {
@@ -826,8 +845,7 @@ class App {
     }
 
     handleInitialUrlParam() {
-        const params = new URLSearchParams(this.windowRef.location.search);
-        const initialUrl = params.get("url");
+        const initialUrl = this.getInitialArticleUrl();
 
         if (!initialUrl || this.urlInput == null) {
             return;
@@ -841,6 +859,32 @@ class App {
 
         if (this.normalizeUserUrl(initialUrl) != null) {
             this.onSubmitClicked();
+        }
+    }
+
+    getInitialArticleUrl() {
+        const pathUrl = this.getArticleUrlFromPath();
+        if (pathUrl != null) {
+            return pathUrl;
+        }
+
+        const params = new URLSearchParams(this.windowRef.location.search);
+        return params.get("url");
+    }
+
+    getArticleUrlFromPath() {
+        const pathname = this.windowRef.location.pathname ?? "";
+        const prefix = "/url=";
+
+        if (!pathname.startsWith(prefix)) {
+            return null;
+        }
+
+        try {
+            return decodeURIComponent(pathname.slice(prefix.length));
+        } catch (error) {
+            console.warn("[navigation] could not decode article URL path", error);
+            return null;
         }
     }
 
@@ -1130,12 +1174,20 @@ class App {
         const normalizedUrl = this.normalizeUserUrl(urlValue);
 
         if (normalizedUrl == null) {
-            return;
+            return false;
+        }
+
+        const currentPathUrl = this.normalizeUserUrl(this.getArticleUrlFromPath() ?? "");
+        if (currentPathUrl === normalizedUrl) {
+            return false;
         }
 
         const nextUrl = new URL(this.windowRef.location.href);
-        nextUrl.searchParams.set("url", normalizedUrl);
-        this.windowRef.history.replaceState({}, "", nextUrl.toString());
+        nextUrl.pathname = `/url=${encodeURIComponent(normalizedUrl)}`;
+        nextUrl.search = "";
+        nextUrl.hash = "";
+        this.windowRef.location.assign(nextUrl.toString());
+        return true;
     }
 
     onSubmitButtonPointerDown() {
@@ -1206,13 +1258,18 @@ class App {
         return this.submissionController.renderResolvedArticle(articleObject, meta);
     }
 
-    async handleResolvedArticle(articleObject, { source = "resolved", targetUrl = null } = {}) {
+    async handleResolvedArticle(articleObject, { source = "resolved", targetUrl = null, submitToken = null } = {}) {
+        if (submitToken != null && this.submissionController?.isSubmitFlowActive?.(submitToken) === false) {
+            return false;
+        }
+
         if (!this.runtimeState.three) {
             this.pendingResolvedArticle = {
                 articleObject,
                 meta: {
                     source,
-                    targetUrl
+                    targetUrl,
+                    submitToken
                 }
             };
             return true;
@@ -1226,6 +1283,9 @@ class App {
 
         this.collectEvidenceIds(articleObject.ownershipTreeObj);
         const evidenceResult = await this.collectEvidence(this.evidenceIds);
+        if (submitToken != null && this.submissionController?.isSubmitFlowActive?.(submitToken) === false) {
+            return false;
+        }
         if (evidenceResult?.error != null || evidenceResult?.data == null) {
             console.warn("[evidence] collection failed", evidenceResult?.error ?? null);
             this.windowRef.location.reload();
@@ -1238,6 +1298,9 @@ class App {
 
         this.collectEntities(articleObject.ownershipTreeObj);
         this.collectRelationships(articleObject.ownershipTreeObj);
+        if (submitToken != null && this.submissionController?.isSubmitFlowActive?.(submitToken) === false) {
+            return false;
+        }
 
         this.exposeGlobalApp();
         const store = this.windowRef[`apps_${this.performanceRef.timeOrigin}`].pepe;

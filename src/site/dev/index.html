@@ -9,6 +9,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Pepe Silv.AI</title>
+    <script src="./runtime-config.js"></script>
     <link rel="stylesheet" href="main.css">
 
     <script type="importmap">
@@ -23,10 +24,13 @@
 
 <body>
     <nav id="auth-links" aria-label="Account">
-        <button id="auth-sign-in-link" type="button">Sign in</button>
-        <span id="auth-links-separator" aria-hidden="true">/</span>
-        <button id="auth-sign-up-link" type="button">Sign up</button>
-        <button id="auth-sign-out-link" type="button" hidden>Sign out</button>
+        <button id="auth-sign-in-link" type="button" hidden>Sign in</button>
+        <span id="auth-links-separator" aria-hidden="true" hidden>/</span>
+        <button id="auth-sign-up-link" type="button" hidden>Sign up</button>
+        <span id="auth-credit-balance" hidden></span>
+        <button id="auth-buy-credits-button" type="button" hidden>Buy $10 credits</button>
+        <span id="auth-status-message" hidden aria-live="polite"></span>
+        <div id="clerk-user-button" hidden></div>
     </nav>
     <div id="page-background">
         <div class="page-background-plane">
@@ -128,23 +132,6 @@
             <div id="submit-status-message" aria-live="polite"></div>
             <div id="submit-status-timer" aria-hidden="true"></div>
         </div>
-    </div>
-    <div id="auth-modal" hidden aria-hidden="true">
-        <div id="auth-modal-backdrop"></div>
-        <section id="auth-card" role="dialog" aria-modal="true" aria-labelledby="auth-card-title">
-            <button id="auth-close-button" type="button" aria-label="Close account dialog">Close</button>
-            <h2 id="auth-card-title">Sign in</h2>
-            <p id="auth-card-copy">Use an account to buy credits and request new company research.</p>
-            <form id="auth-form">
-                <input id="auth-email-input" type="email" autocomplete="email" placeholder="Email" required>
-                <input id="auth-password-input" type="password" autocomplete="current-password" placeholder="Password" required>
-                <button id="auth-submit-button" type="submit">Sign in</button>
-            </form>
-            <div id="auth-credit-actions">
-                <button id="auth-buy-credits-button" type="button">Buy $10 credits</button>
-            </div>
-            <div id="auth-status-message" aria-live="polite"></div>
-        </section>
     </div>
     <script>
         (() => {

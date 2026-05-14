@@ -9,13 +9,20 @@ class ArticleApiService {
         this.baseUrl = options.baseUrl ?? ARTICLE_API_CONFIG.defaultBaseUrl;
         this.supabaseUrl = options.supabaseUrl ?? ARTICLE_API_CONFIG.supabaseUrl;
         this.supabaseKey = options.supabaseKey ?? ARTICLE_API_CONFIG.supabasePublishableKey;
+        this.clerkPublishableKey = options.clerkPublishableKey ?? ARTICLE_API_CONFIG.clerkPublishableKey;
+        this.clerkFrontendApiUrl = options.clerkFrontendApiUrl ?? ARTICLE_API_CONFIG.clerkFrontendApiUrl;
+        this.creditPackId = options.creditPackId ?? ARTICLE_API_CONFIG.creditPackId ?? "credits_10";
         this.fetchImpl = options.fetchImpl ?? fetch;
         this.logger = options.logger ?? console;
+        this.windowRef = options.windowRef ?? window;
+        this.documentRef = options.documentRef ?? document;
         this.supportedSitesText = options.supportedSitesText ?? "";
         this.maxQueuePollAttempts = options.maxQueuePollAttempts ?? ARTICLE_API_CONFIG.maxQueuePollAttempts;
         this.queuePollDelayMs = options.queuePollDelayMs ?? ARTICLE_API_CONFIG.queuePollDelayMs;
-        this.createSupabaseClient = options.createSupabaseClient ?? ((url, key) => createClient(url, key));
+        this.createSupabaseClient = options.createSupabaseClient ?? ((url, key, clientOptions) => createClient(url, key, clientOptions));
         this.supabaseClient = options.supabaseClient ?? null;
+        this.clerkInitPromise = null;
+        this.clerkLoaded = false;
     }
 
     setSupportedSitesText(text) {
@@ -27,8 +34,175 @@ class ArticleApiService {
             return this.supabaseClient;
         }
 
-        this.supabaseClient = this.createSupabaseClient(this.supabaseUrl, this.supabaseKey);
+        this.supabaseClient = this.createSupabaseClient(this.supabaseUrl, this.supabaseKey, {
+            accessToken: async () => await this.getClerkSessionToken()
+        });
         return this.supabaseClient;
+    }
+
+    isClerkConfigured() {
+        return Boolean(
+            String(this.clerkPublishableKey ?? "").trim() &&
+            String(this.clerkFrontendApiUrl ?? "").trim()
+        );
+    }
+
+    loadExternalScript(src, attributes = {}) {
+        return new Promise((resolve, reject) => {
+            const existingScript = this.documentRef.querySelector(`script[data-loader-src="${src}"]`);
+            if (existingScript != null) {
+                if (existingScript.dataset.loaderLoaded === "true") {
+                    resolve(existingScript);
+                    return;
+                }
+
+                existingScript.addEventListener("load", () => resolve(existingScript), { once: true });
+                existingScript.addEventListener("error", () => reject(new Error(`Failed to load script: ${src}`)), { once: true });
+                return;
+            }
+
+            const script = this.documentRef.createElement("script");
+            script.async = true;
+            script.src = src;
+            script.dataset.loaderSrc = src;
+            for (const [key, value] of Object.entries(attributes)) {
+                if (value != null) {
+                    script.setAttribute(key, String(value));
+                }
+            }
+            script.addEventListener("load", () => {
+                script.dataset.loaderLoaded = "true";
+                resolve(script);
+            }, { once: true });
+            script.addEventListener("error", () => reject(new Error(`Failed to load script: ${src}`)), { once: true });
+            this.documentRef.head.appendChild(script);
+        });
+    }
+
+    async initializeClerk() {
+        if (!this.isClerkConfigured()) {
+            return null;
+        }
+
+        if (this.clerkInitPromise != null) {
+            return await this.clerkInitPromise;
+        }
+
+        this.clerkInitPromise = (async () => {
+            const frontendApiUrl = String(this.clerkFrontendApiUrl).replace(/\/+$/, "");
+            if (this.windowRef.Clerk == null) {
+                await this.loadExternalScript(`${frontendApiUrl}/npm/@clerk/ui@1/dist/ui.browser.js`, {
+                    crossorigin: "anonymous"
+                });
+                await this.loadExternalScript(`${frontendApiUrl}/npm/@clerk/clerk-js@6/dist/clerk.browser.js`, {
+                    crossorigin: "anonymous",
+                    "data-clerk-publishable-key": this.clerkPublishableKey
+                });
+            }
+
+            const clerk = this.windowRef.Clerk ?? null;
+            if (clerk == null) {
+                throw new Error("Clerk did not initialize.");
+            }
+
+            if (!this.clerkLoaded && typeof clerk.load === "function") {
+                const uiCtor = this.windowRef.__internal_ClerkUICtor ?? null;
+                await clerk.load(uiCtor != null ? { ui: { ClerkUI: uiCtor } } : undefined);
+                this.clerkLoaded = true;
+            }
+
+            return clerk;
+        })();
+
+        return await this.clerkInitPromise;
+    }
+
+    normalizeClerkUser(user) {
+        if (user == null) {
+            return null;
+        }
+
+        const email =
+            user.primaryEmailAddress?.emailAddress ??
+            user.emailAddresses?.[0]?.emailAddress ??
+            "";
+
+        return {
+            id: user.id,
+            email,
+            raw: user
+        };
+    }
+
+    async getClerkSessionToken() {
+        const clerk = await this.initializeClerk().catch((error) => {
+            this.logger?.warn?.("[auth] Clerk token unavailable", error);
+            return null;
+        });
+        if (clerk == null || clerk.session == null) {
+            return null;
+        }
+
+        try {
+            return await clerk.session.getToken();
+        } catch (error) {
+            this.logger?.warn?.("[auth] Clerk session token failed", error);
+            return null;
+        }
+    }
+
+    async openAuth(mode = "signin") {
+        const clerk = await this.initializeClerk();
+        if (clerk == null) {
+            return false;
+        }
+
+        if (mode === "signup" && typeof clerk.openSignUp === "function") {
+            clerk.openSignUp();
+            return true;
+        }
+
+        if (typeof clerk.openSignIn === "function") {
+            clerk.openSignIn();
+            return true;
+        }
+
+        return false;
+    }
+
+    async signOut() {
+        const clerk = await this.initializeClerk();
+        return await clerk?.signOut?.();
+    }
+
+    async mountUserButton(target) {
+        if (target == null) {
+            return false;
+        }
+
+        const clerk = await this.initializeClerk();
+        if (clerk == null || typeof clerk.mountUserButton !== "function") {
+            return false;
+        }
+
+        clerk.mountUserButton(target);
+        return true;
+    }
+
+    async unmountUserButton(target) {
+        const clerk = await this.initializeClerk();
+        if (clerk != null && target != null && typeof clerk.unmountUserButton === "function") {
+            clerk.unmountUserButton(target);
+        }
+    }
+
+    async addAuthListener(callback) {
+        const clerk = await this.initializeClerk();
+        if (clerk == null || typeof clerk.addListener !== "function") {
+            return null;
+        }
+
+        return clerk.addListener(callback);
     }
 
     async healthCheck() {
@@ -461,10 +635,10 @@ class ArticleApiService {
         };
     }
 
-    async createCheckoutSession({ amountUsd = 10 } = {}, supabase = this.getSupabaseClient()) {
+    async createCheckoutSession({ packId = this.creditPackId } = {}, supabase = this.getSupabaseClient()) {
         const { data, error } = await supabase.functions.invoke("create-checkout-session", {
             body: {
-                amount_usd: amountUsd
+                pack_id: packId
             }
         });
 
@@ -474,24 +648,43 @@ class ArticleApiService {
         };
     }
 
-    async getSession(supabase = this.getSupabaseClient()) {
-        return await supabase.auth.getSession();
+    async getCurrentUser() {
+        const clerk = await this.initializeClerk().catch((error) => {
+            this.logger?.warn?.("[auth] could not initialize Clerk", error);
+            return null;
+        });
+        return {
+            data: {
+                user: this.normalizeClerkUser(clerk?.user ?? null)
+            },
+            error: null
+        };
     }
 
-    async getCurrentUser(supabase = this.getSupabaseClient()) {
-        return await supabase.auth.getUser();
-    }
+    async getCreditBalance(supabase = this.getSupabaseClient()) {
+        const { data: userData, error: userError } = await this.getCurrentUser();
+        if (userError) {
+            return { data: null, error: userError };
+        }
 
-    async signInWithPassword({ email, password }, supabase = this.getSupabaseClient()) {
-        return await supabase.auth.signInWithPassword({ email, password });
-    }
+        const user = userData?.user ?? null;
+        if (user == null) {
+            return { data: null, error: null };
+        }
 
-    async signUpWithPassword({ email, password }, supabase = this.getSupabaseClient()) {
-        return await supabase.auth.signUp({ email, password });
-    }
+        const { data, error } = await supabase.rpc("get_credit_balance", {
+            p_user_id: user.id
+        });
 
-    async signOut(supabase = this.getSupabaseClient()) {
-        return await supabase.auth.signOut();
+        if (error) {
+            return { data: null, error };
+        }
+
+        const row = Array.isArray(data) ? data[0] ?? null : data ?? null;
+        return {
+            data: this.parseJsonRecursively(row),
+            error: null
+        };
     }
 
     async getArticleByUrl(targetUrl, supabase = this.getSupabaseClient()) {

@@ -10,6 +10,19 @@ rm -rf "$output_dir"
 mkdir -p "$output_dir"
 cp -a "$source_dir/." "$output_dir/"
 
+js_string() {
+    local value="${1:-}"
+    value="${value//\\/\\\\}"
+    value="${value//\"/\\\"}"
+    value="${value//$'\n'/\\n}"
+    printf '"%s"' "$value"
+}
+
+{
+    printf 'window.PEPE_CLERK_PUBLISHABLE_KEY = %s;\n' "$(js_string "${PEPE_CLERK_PUBLISHABLE_KEY:-}")"
+    printf 'window.PEPE_CLERK_FRONTEND_API_URL = %s;\n' "$(js_string "${PEPE_CLERK_FRONTEND_API_URL:-}")"
+} > "$output_dir/runtime-config.js"
+
 # The app imports Three addons from examples/jsm only. The rest of the Three
 # examples tree is demo content and includes files over Cloudflare Pages' 25 MiB
 # per-asset limit.

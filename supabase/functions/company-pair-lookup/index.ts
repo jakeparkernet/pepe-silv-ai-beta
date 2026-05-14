@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { verifyToken } from "https://esm.sh/@clerk/backend@1";
 
 const ALLOWED_ORIGINS = new Set(
   (Deno.env.get("ALLOWED_ORIGINS") ??
@@ -340,13 +341,30 @@ async function resolveExistingEntity(company: CompanyInput) {
   return await selectMostLikelyEntity(company, candidates);
 }
 
-async function getAuthenticatedUser(req: Request, supabaseUrl: string, serviceRole: string) {
+async function getAuthenticatedUser(req: Request) {
   const authHeader = req.headers.get("authorization") ?? "";
   const token = authHeader.toLowerCase().startsWith("bearer ") ? authHeader.slice(7).trim() : "";
   if (!token) return null;
-  const supabase = createClient(supabaseUrl, serviceRole, { auth: { persistSession: false } });
-  const { data, error } = await supabase.auth.getUser(token);
-  return error ? null : data.user ?? null;
+  const clerkJwtKey = Deno.env.get("CLERK_JWT_KEY") ?? "";
+  const clerkSecretKey = Deno.env.get("CLERK_SECRET_KEY") ?? "";
+  if (!clerkJwtKey && !clerkSecretKey) {
+    throw new Error("Missing Clerk token verification configuration");
+  }
+  const authorizedParties = (Deno.env.get("CLERK_AUTHORIZED_PARTIES") ?? "")
+    .split(",")
+    .map((party) => party.trim())
+    .filter(Boolean);
+  const verifyOptions: any = {
+    jwtKey: clerkJwtKey || undefined,
+    secretKey: clerkSecretKey || undefined,
+  };
+  if (authorizedParties.length > 0) {
+    verifyOptions.authorizedParties = authorizedParties;
+  }
+  const verifiedToken = await verifyToken(token, verifyOptions);
+  const claims = verifiedToken as Record<string, unknown>;
+  const userId = typeof claims.sub === "string" ? claims.sub : "";
+  return userId ? { id: userId } : null;
 }
 
 async function findExistingOwnershipTree(supabase: ReturnType<typeof createClient>, companyAId: string, companyBId: string) {
@@ -413,7 +431,7 @@ serve(async (req) => {
     const settingsByKey = new Map((settings.data ?? []).map((row) => [row.key, row.value]));
     const requiresAuth = parseBooleanSetting(settingsByKey.get("company_pair_search_requires_paid_lookup"), false);
     const lookupCostUsd = parseMoneySetting(settingsByKey.get("company_pair_lookup_cost_usd"), 0);
-    const user = await getAuthenticatedUser(req, supabaseUrl, serviceRole);
+    const user = await getAuthenticatedUser(req);
     if (requiresAuth && !user) {
       return respond(origin, 401, { ok: false, error: "Sign in required for this search" });
     }

@@ -76,7 +76,8 @@ export class ArticleSubmissionController {
             lookupCompanyPair: api.lookupCompanyPair ?? null,
             startCompanyPairResearch: api.startCompanyPairResearch ?? null,
             createCheckoutSession: api.createCheckoutSession ?? null,
-            getCurrentUser: api.getCurrentUser ?? null
+            getCurrentUser: api.getCurrentUser ?? null,
+            openSignIn: api.openSignIn ?? null
         };
 
         this.chrome = {
@@ -138,6 +139,7 @@ export class ArticleSubmissionController {
         this.isSubmitInteractionLocked = false;
         this.pendingSubmitStatusResetToken = 0;
         this.articleStatusPollToken = 0;
+        this.submitFlowToken = 0;
         this.hasSubmittedValidArticleUrl = false;
         this.windowRef.__pepeSubmitLocked = false;
 
@@ -340,6 +342,19 @@ export class ArticleSubmissionController {
 
     stopArticleStatusPolling() {
         this.articleStatusPollToken += 1;
+    }
+
+    invalidateSubmitFlow() {
+        this.submitFlowToken += 1;
+        return this.submitFlowToken;
+    }
+
+    isSubmitFlowActive(token) {
+        if (token == null) {
+            return true;
+        }
+
+        return token === this.submitFlowToken;
     }
 
     hideSubmitStatusTimer() {
@@ -807,6 +822,7 @@ export class ArticleSubmissionController {
         this.stopArticleStatusPolling();
         this.hideArticleStatusProgress();
         this.hasSubmittedValidArticleUrl = false;
+        const submitToken = this.invalidateSubmitFlow();
 
         const split = this.parseCompanyPairSplit(this.dom.urlInput?.value ?? "");
         if (split != null) {
@@ -842,13 +858,19 @@ export class ArticleSubmissionController {
 
         this.hasSubmittedValidArticleUrl = true;
         this.setSubmitInteractionLocked(true);
-        callMaybe(this.chrome.updateAddressBarUrlParam, normalizedUrl);
+        const didNavigate = callMaybe(this.chrome.updateAddressBarUrlParam, normalizedUrl) === true;
+        if (didNavigate) {
+            return true;
+        }
         this.startForegroundFadeOut();
 
         let articleObject = null;
         try {
             articleObject = await this.api.getArticleByUrl?.(normalizedUrl);
         } catch (error) {
+            if (!this.isSubmitFlowActive(submitToken)) {
+                return false;
+            }
             this.logger?.error?.("[submit-flow] getArticleByUrl failed", error);
             this.setForegroundSearchVisible(true);
             this.showForeground();
@@ -856,6 +878,10 @@ export class ArticleSubmissionController {
             this.setSubmitInteractionLocked(false);
             this.updateSubmitButtonVisibility();
             return;
+        }
+
+        if (!this.isSubmitFlowActive(submitToken)) {
+            return false;
         }
 
         this.logger?.log?.("[submit-flow] getArticleByUrl resolved", {
@@ -866,6 +892,9 @@ export class ArticleSubmissionController {
         });
 
         if (articleObject == null) {
+            if (!this.isSubmitFlowActive(submitToken)) {
+                return false;
+            }
             this.setForegroundSearchVisible(true);
             this.showForeground();
             this.showSubmitStatusMessage("Could not load article status.");
@@ -884,6 +913,9 @@ export class ArticleSubmissionController {
             articleStatus === "not applicable";
 
         if (isNotApplicableArticle) {
+            if (!this.isSubmitFlowActive(submitToken)) {
+                return false;
+            }
             this.setForegroundSearchVisible(true);
             this.showForeground();
             this.showSubmitStatusMessage(NOT_APPLICABLE_STATUS_MESSAGE);
@@ -898,13 +930,16 @@ export class ArticleSubmissionController {
             articleObject.ownership_tree != null;
 
         if (!hasValidOwnershipTree) {
-            await this.handlePendingArticleState(normalizedUrl, articleObject);
+            await this.handlePendingArticleState(normalizedUrl, articleObject, {
+                submitToken
+            });
             return;
         }
 
         await this.renderResolvedArticle(articleObject, {
             source: "initial-submit",
-            targetUrl: normalizedUrl
+            targetUrl: normalizedUrl,
+            submitToken
         });
     }
 
@@ -1016,6 +1051,9 @@ export class ArticleSubmissionController {
                     ? "Not enough credits. Buy credits first."
                     : result?.data?.error ?? "Could not request research.";
             this.showSubmitStatusMessage(message);
+            if (status === 401) {
+                await this.api.openSignIn?.();
+            }
             if (this.dom.companyPairResearchActions != null) {
                 this.dom.companyPairResearchActions.hidden = false;
             }
@@ -1035,7 +1073,7 @@ export class ArticleSubmissionController {
         event?.preventDefault?.();
         let result = null;
         try {
-            result = await this.api.createCheckoutSession?.({ amountUsd: 10 });
+            result = await this.api.createCheckoutSession?.({ packId: "credits_10" });
         } catch (error) {
             this.logger?.error?.("[credits] checkout failed", error);
             this.showSubmitStatusMessage("Could not start checkout.");
@@ -1045,6 +1083,9 @@ export class ArticleSubmissionController {
         if (result?.error != null || !result?.data?.checkout_url) {
             const status = result?.error?.context?.status ?? null;
             this.showSubmitStatusMessage(status === 401 ? "Sign in before buying credits." : "Could not start checkout.");
+            if (status === 401) {
+                await this.api.openSignIn?.();
+            }
             return false;
         }
 
@@ -1052,7 +1093,11 @@ export class ArticleSubmissionController {
         return true;
     }
 
-    async handlePendingArticleState(targetUrl, articleObject) {
+    async handlePendingArticleState(targetUrl, articleObject, { submitToken = null } = {}) {
+        if (!this.isSubmitFlowActive(submitToken)) {
+            return false;
+        }
+
         this.logger?.log?.("[submit-flow] handlePendingArticleState", {
             targetUrl,
             status: articleObject?.article?.status ?? null,
@@ -1076,14 +1121,23 @@ export class ArticleSubmissionController {
 
         const initialMessage = this.getQueueStatusMessage(articleObject);
         this.showSubmitStatusMessage(initialMessage);
+        if (!this.isSubmitFlowActive(submitToken)) {
+            return false;
+        }
         await this.updateArticleStatusProgress(articleObject);
         this.updateSubmitButtonVisibility();
+        if (!this.isSubmitFlowActive(submitToken)) {
+            return false;
+        }
 
         const isTerminalDeferred = status === "deferred";
         const isTerminalNotApplicable =
             status === "not-applicable" || status === "not applicable";
 
         if (isTerminalDeferred || isTerminalNotApplicable) {
+            if (!this.isSubmitFlowActive(submitToken)) {
+                return false;
+            }
             this.setForegroundSearchVisible(true);
             this.hideArticleStatusProgress();
             this.setSubmitInteractionLocked(false);
@@ -1091,21 +1145,28 @@ export class ArticleSubmissionController {
             return;
         }
 
-        this.pollArticleStatus(targetUrl);
+        this.pollArticleStatus(targetUrl, { submitToken });
     }
 
-    async pollArticleStatus(targetUrl) {
+    async pollArticleStatus(targetUrl, { submitToken = null } = {}) {
         const token = ++this.articleStatusPollToken;
         const pollDelayMs = this.submitStatusPollDelayMs;
 
         while (token === this.articleStatusPollToken) {
             await this.wait(pollDelayMs);
 
+            if (!this.isSubmitFlowActive(submitToken)) {
+                return;
+            }
+
             if (token !== this.articleStatusPollToken) {
                 return;
             }
 
             const queueResult = await this.api.getArticleQueueRowByUrl?.(targetUrl);
+            if (!this.isSubmitFlowActive(submitToken)) {
+                return;
+            }
             if (queueResult?.error || queueResult?.data == null) {
                 continue;
             }
@@ -1124,8 +1185,14 @@ export class ArticleSubmissionController {
                 target_url: targetUrl
             });
 
+            if (!this.isSubmitFlowActive(submitToken)) {
+                return;
+            }
             this.showSubmitStatusMessage(this.getQueueStatusMessage(articleObject));
             await this.updateArticleStatusProgress(articleObject);
+            if (!this.isSubmitFlowActive(submitToken)) {
+                return;
+            }
 
             const articleStatus = String(articleObject?.article?.status ?? "").toLowerCase();
             if (articleStatus === "timeout" || articleStatus === "failed") {
@@ -1142,6 +1209,10 @@ export class ArticleSubmissionController {
                     articleObject.article.ownership_tree_id
                 );
 
+                if (!this.isSubmitFlowActive(submitToken)) {
+                    return;
+                }
+
                 if (ownershipTreeObj != null) {
                     this.stopArticleStatusPolling();
                     articleObject.ownershipTreeObj = ownershipTreeObj;
@@ -1152,7 +1223,8 @@ export class ArticleSubmissionController {
                     });
                     await this.renderResolvedArticle(articleObject, {
                         source: "poll-resolved",
-                        targetUrl
+                        targetUrl,
+                        submitToken
                     });
                     return;
                 }
@@ -1173,7 +1245,14 @@ export class ArticleSubmissionController {
         }
     }
 
-    async renderResolvedArticle(articleObject, { source = "resolved", targetUrl = null } = {}) {
+    async renderResolvedArticle(
+        articleObject,
+        { source = "resolved", targetUrl = null, submitToken = null } = {}
+    ) {
+        if (!this.isSubmitFlowActive(submitToken)) {
+            return false;
+        }
+
         this.stopArticleStatusPolling();
         this.hideArticleStatusProgress();
         this.hideSubmitStatusMessage();
@@ -1193,14 +1272,25 @@ export class ArticleSubmissionController {
             targetUrl
         });
 
+        if (!this.isSubmitFlowActive(submitToken)) {
+            return false;
+        }
+
         await this.callbacks.onResolvedArticle?.(articleObject, {
             source,
-            targetUrl
+            targetUrl,
+            submitToken
         });
+
+        if (!this.isSubmitFlowActive(submitToken)) {
+            return false;
+        }
 
         await callMaybe(this.callbacks.onAfterResolvedArticle, articleObject, {
             source,
             targetUrl
         });
+
+        return true;
     }
 }

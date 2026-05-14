@@ -74,8 +74,14 @@ serve(async (req) => {
   }
 
   const session = event.data?.object ?? {};
-  const userId = typeof session.metadata?.user_id === "string" ? session.metadata.user_id : null;
+  const userId =
+    typeof session.metadata?.clerk_user_id === "string"
+      ? session.metadata.clerk_user_id
+      : typeof session.metadata?.user_id === "string"
+        ? session.metadata.user_id
+        : null;
   const creditsUsd = Number(session.metadata?.credits_usd ?? 0);
+  const packId = typeof session.metadata?.pack_id === "string" ? session.metadata.pack_id : null;
   const sessionId = typeof session.id === "string" ? session.id : null;
   if (!userId || !sessionId || !Number.isFinite(creditsUsd) || creditsUsd <= 0) {
     return new Response(JSON.stringify({ ok: false, error: "Invalid checkout session metadata" }), { status: 400 });
@@ -92,6 +98,11 @@ serve(async (req) => {
   }
 
   if (existing.data?.status !== "paid") {
+    await supabase.from("credit_accounts").upsert({
+      user_id: userId,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "user_id" });
+
     await supabase.from("stripe_checkout_sessions").upsert({
       user_id: userId,
       stripe_session_id: sessionId,
@@ -109,6 +120,7 @@ serve(async (req) => {
       stripe_session_id: sessionId,
       metadata: {
         stripe_event_id: event.id,
+        pack_id: packId,
       },
     });
     if (ledger.error && ledger.error.code !== "23505") {

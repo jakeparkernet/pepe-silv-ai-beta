@@ -300,6 +300,33 @@ body {
     opacity: 0.56;
 }
 
+#auth-credit-balance,
+#auth-status-message {
+    max-width: min(34vw, 230px);
+    overflow: hidden;
+    color: rgba(247, 239, 223, 0.82);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#auth-buy-credits-button {
+    padding: 4px 8px;
+    border: 1px solid rgba(247, 227, 179, 0.38);
+    border-radius: 999px;
+    color: rgba(247, 239, 223, 0.94);
+    background: rgba(18, 12, 8, 0.48);
+    text-decoration: none;
+}
+
+#clerk-user-button {
+    display: inline-flex;
+    align-items: center;
+}
+
+#clerk-user-button[hidden] {
+    display: none;
+}
+
 #attribution {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
     font-size: 11px;
@@ -1386,9 +1413,7 @@ body.foreground-search-visible #view-toggle-container {
 
 #company-pair-submit-button,
 #company-pair-research-button,
-#company-pair-buy-credits-button,
-#auth-submit-button,
-#auth-buy-credits-button {
+#company-pair-buy-credits-button {
     border: 1px solid rgba(247, 227, 179, 0.42);
     border-radius: 999px;
     padding: 10px 17px;
@@ -1407,101 +1432,9 @@ body.foreground-search-visible #view-toggle-container {
     gap: 8px;
 }
 
-#company-pair-buy-credits-button,
-#auth-buy-credits-button {
+#company-pair-buy-credits-button {
     color: rgba(247, 239, 223, 0.92);
     background: rgba(18, 12, 8, 0.72);
-}
-
-#auth-modal {
-    position: fixed;
-    inset: 0;
-    z-index: 3000;
-    display: grid;
-    place-items: center;
-    padding: 18px;
-    box-sizing: border-box;
-}
-
-#auth-modal[hidden] {
-    display: none;
-}
-
-#auth-modal-backdrop {
-    position: absolute;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.54);
-    backdrop-filter: blur(7px);
-}
-
-#auth-card {
-    position: relative;
-    width: min(420px, calc(100vw - 36px));
-    padding: 22px;
-    box-sizing: border-box;
-    border: 1px solid rgba(247, 227, 179, 0.2);
-    border-radius: 22px;
-    background: rgba(26, 17, 12, 0.94);
-    color: rgba(247, 239, 223, 0.94);
-    box-shadow: 0 30px 70px rgba(0, 0, 0, 0.42);
-}
-
-#auth-card h2 {
-    margin: 0 0 6px;
-    font-family: "Permanent Marker", cursive;
-    font-size: 28px;
-    font-weight: 700;
-}
-
-#auth-card-copy {
-    margin: 0 0 16px;
-    color: rgba(247, 239, 223, 0.72);
-    font-size: 14px;
-    line-height: 1.4;
-}
-
-#auth-close-button {
-    position: absolute;
-    top: 12px;
-    right: 12px;
-    border: 0;
-    padding: 0;
-    color: rgba(247, 239, 223, 0.72);
-    background: transparent;
-    font: inherit;
-    text-decoration: underline;
-    text-underline-offset: 3px;
-    cursor: pointer;
-}
-
-#auth-form {
-    display: grid;
-    gap: 10px;
-}
-
-#auth-email-input,
-#auth-password-input {
-    height: 42px;
-    padding: 0 12px;
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    border-radius: 12px;
-    background: rgba(255, 252, 244, 0.96);
-    box-sizing: border-box;
-    font-size: 15px;
-}
-
-#auth-credit-actions {
-    display: flex;
-    justify-content: center;
-    margin-top: 12px;
-}
-
-#auth-status-message {
-    min-height: 18px;
-    margin-top: 12px;
-    color: rgba(247, 239, 223, 0.8);
-    font-size: 13px;
-    text-align: center;
 }
 
 #url-submit-button {
