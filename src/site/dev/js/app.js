@@ -107,6 +107,8 @@ class App {
         this.onUrlInputPasted = this.onUrlInputPasted.bind(this);
         this.handleResolvedArticle = this.handleResolvedArticle.bind(this);
         this.onLoaderStage = this.onLoaderStage.bind(this);
+        this.onPageShown = this.onPageShown.bind(this);
+        this.onHistoryChanged = this.onHistoryChanged.bind(this);
 
         this.foreground = document.getElementById("foreground");
         this.pageBackground = document.getElementById("page-background");
@@ -670,8 +672,18 @@ class App {
 
     bindRuntimeListeners() {
         this.windowRef.addEventListener("resize", this.onWindowResize);
+        this.windowRef.addEventListener("pageshow", this.onPageShown);
+        this.windowRef.addEventListener("popstate", this.onHistoryChanged);
         this.windowRef.visualViewport?.addEventListener("resize", this.onWindowResize);
         this.windowRef.visualViewport?.addEventListener("scroll", this.onWindowResize);
+    }
+
+    onPageShown() {
+        this.resetHomepageStateIfNeeded();
+    }
+
+    onHistoryChanged() {
+        this.resetHomepageStateIfNeeded();
     }
 
     initializeVisualizationToggle() {
@@ -848,6 +860,7 @@ class App {
         const initialUrl = this.getInitialArticleUrl();
 
         if (!initialUrl || this.urlInput == null) {
+            this.resetHomepageStateIfNeeded();
             return;
         }
 
@@ -865,6 +878,33 @@ class App {
     getInitialArticleUrl() {
         const params = new URLSearchParams(this.windowRef.location.search);
         return params.get("url");
+    }
+
+    resetHomepageStateIfNeeded() {
+        if (this.getInitialArticleUrl() != null) {
+            return false;
+        }
+
+        this.pendingResolvedArticle = null;
+        this.pendingArticleStatus = null;
+        this.submissionController?.stopArticleStatusPolling?.();
+        this.submissionController?.invalidateSubmitFlow?.();
+
+        if (this.urlInput != null) {
+            this.urlInput.value = "";
+        }
+
+        this.resetUrlInputMode();
+        this.hideArticleStatusProgress();
+        this.clearCurrentArticleView();
+        this.hideArticleUrlDisplay();
+        this.hideNewSearchContainer();
+        this.hideShareContainer();
+        this.pageBackgroundController?.showPageBackground?.();
+        this.startPageBackgroundFocusLoop();
+        this.showForeground();
+        this.updateSubmitButtonVisibility();
+        return true;
     }
 
     parseJsonRecursively(value) {
