@@ -863,29 +863,8 @@ class App {
     }
 
     getInitialArticleUrl() {
-        const pathUrl = this.getArticleUrlFromPath();
-        if (pathUrl != null) {
-            return pathUrl;
-        }
-
         const params = new URLSearchParams(this.windowRef.location.search);
         return params.get("url");
-    }
-
-    getArticleUrlFromPath() {
-        const pathname = this.windowRef.location.pathname ?? "";
-        const prefix = "/url=";
-
-        if (!pathname.startsWith(prefix)) {
-            return null;
-        }
-
-        try {
-            return decodeURIComponent(pathname.slice(prefix.length));
-        } catch (error) {
-            console.warn("[navigation] could not decode article URL path", error);
-            return null;
-        }
     }
 
     parseJsonRecursively(value) {
@@ -1177,14 +1156,14 @@ class App {
             return false;
         }
 
-        const currentPathUrl = this.normalizeUserUrl(this.getArticleUrlFromPath() ?? "");
-        if (currentPathUrl === normalizedUrl) {
+        const currentUrl = new URL(this.windowRef.location.href);
+        const currentArticleUrl = this.normalizeUserUrl(currentUrl.searchParams.get("url") ?? "");
+        if (currentArticleUrl === normalizedUrl && currentUrl.pathname === "/") {
             return false;
         }
 
-        const nextUrl = new URL(this.windowRef.location.href);
-        nextUrl.pathname = `/url=${encodeURIComponent(normalizedUrl)}`;
-        nextUrl.search = "";
+        const nextUrl = new URL(this.windowRef.location.origin);
+        nextUrl.searchParams.set("url", normalizedUrl);
         nextUrl.hash = "";
         this.windowRef.location.assign(nextUrl.toString());
         return true;
