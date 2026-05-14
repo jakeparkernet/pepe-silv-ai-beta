@@ -15,9 +15,13 @@ class ArticleModel {
     }
 
     updateModel (articleData) {
-        this.id = articleData.id;
-        this.url = articleData.url;
-        this.status = articleData.status;
+        this.id = articleData.id ?? articleData?.article?.id;
+        this.url = articleData.url ?? articleData?.article?.url;
+        this.status = articleData.status ?? articleData?.article?.status;
+        this.mode = articleData.mode ?? articleData?.article?.mode ?? "article";
+        this.subjectNodeLabel = this.mode === "company_pair" ? "Company A" : "Article subject";
+        this.newsSiteNodeLabel = this.mode === "company_pair" ? "Company B" : "News site";
+        this.subjectRelationLabel = this.mode === "company_pair" ? "compared with" : "wrote about";
 
         let investigationData = articleData?.ownershipTreeObj?.investigation_data;
 

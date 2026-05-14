@@ -107,6 +107,7 @@ class App {
         this.onUrlInputPasted = this.onUrlInputPasted.bind(this);
         this.handleResolvedArticle = this.handleResolvedArticle.bind(this);
         this.onLoaderStage = this.onLoaderStage.bind(this);
+        this.onAuthFormSubmit = this.onAuthFormSubmit.bind(this);
 
         this.foreground = document.getElementById("foreground");
         this.pageBackground = document.getElementById("page-background");
@@ -115,6 +116,16 @@ class App {
         this.pageBackgroundBlurLayer = this.pageBackground?.querySelector(".page-background-layer-blur") ?? null;
         this.urlInput = document.getElementById("url-input");
         this.urlInputContainer = document.getElementById("url-input-container");
+        this.companyPairInputContainer = document.getElementById("company-pair-input-container");
+        this.companyANameInput = document.getElementById("company-a-name");
+        this.companyAContextInput = document.getElementById("company-a-context");
+        this.companyBNameInput = document.getElementById("company-b-name");
+        this.companyBContextInput = document.getElementById("company-b-context");
+        this.companyPairActions = document.getElementById("company-pair-actions");
+        this.companyPairSubmitButton = document.getElementById("company-pair-submit-button");
+        this.companyPairResearchActions = document.getElementById("company-pair-research-actions");
+        this.companyPairResearchButton = document.getElementById("company-pair-research-button");
+        this.companyPairBuyCreditsButton = document.getElementById("company-pair-buy-credits-button");
         this.submitButton = document.getElementById("url-submit-button");
         this.submitButtonContainer = document.getElementById("url-submit-button-container");
         this.submitStatusMessage = document.getElementById("submit-status-message");
@@ -144,6 +155,21 @@ class App {
         this.summaryBanner = document.getElementById("summary-banner");
         this.pageTitle = document.getElementById("page-title");
         this.attribution = document.getElementById("attribution");
+        this.authSignInLink = document.getElementById("auth-sign-in-link");
+        this.authSignUpLink = document.getElementById("auth-sign-up-link");
+        this.authSignOutLink = document.getElementById("auth-sign-out-link");
+        this.authLinksSeparator = document.getElementById("auth-links-separator");
+        this.authModal = document.getElementById("auth-modal");
+        this.authModalBackdrop = document.getElementById("auth-modal-backdrop");
+        this.authCloseButton = document.getElementById("auth-close-button");
+        this.authCardTitle = document.getElementById("auth-card-title");
+        this.authForm = document.getElementById("auth-form");
+        this.authEmailInput = document.getElementById("auth-email-input");
+        this.authPasswordInput = document.getElementById("auth-password-input");
+        this.authSubmitButton = document.getElementById("auth-submit-button");
+        this.authBuyCreditsButton = document.getElementById("auth-buy-credits-button");
+        this.authStatusMessage = document.getElementById("auth-status-message");
+        this.authMode = "signin";
 
         this.loaderState = {
             retrieval: false,
@@ -227,6 +253,17 @@ class App {
             dom: {
                 foreground: this.foreground,
                 urlInput: this.urlInput,
+                urlInputContainer: this.urlInputContainer,
+                companyPairInputContainer: this.companyPairInputContainer,
+                companyANameInput: this.companyANameInput,
+                companyAContextInput: this.companyAContextInput,
+                companyBNameInput: this.companyBNameInput,
+                companyBContextInput: this.companyBContextInput,
+                companyPairActions: this.companyPairActions,
+                companyPairSubmitButton: this.companyPairSubmitButton,
+                companyPairResearchActions: this.companyPairResearchActions,
+                companyPairResearchButton: this.companyPairResearchButton,
+                companyPairBuyCreditsButton: this.companyPairBuyCreditsButton,
                 submitButton: this.submitButton,
                 submitButtonContainer: this.submitButtonContainer,
                 submitStatusMessage: this.submitStatusMessage,
@@ -239,7 +276,11 @@ class App {
                 getArticleByUrl: (targetUrl) => this.getArticleByUrl(targetUrl),
                 getArticleQueueRowByUrl: (targetUrl) => this.getArticleQueueRowByUrl(targetUrl),
                 fetchOwnershipTreeById: (ownershipTreeId) => this.fetchOwnershipTreeById(ownershipTreeId),
-                parseJsonRecursively: (value) => this.parseJsonRecursively(value)
+                parseJsonRecursively: (value) => this.parseJsonRecursively(value),
+                lookupCompanyPair: (payload) => this.apiService.lookupCompanyPair(payload),
+                startCompanyPairResearch: (payload) => this.apiService.startCompanyPairResearch(payload),
+                createCheckoutSession: (payload) => this.apiService.createCheckoutSession(payload),
+                getCurrentUser: () => this.apiService.getCurrentUser()
             },
             chrome: {
                 showForeground: () => this.chromeController.showForeground(),
@@ -283,12 +324,132 @@ class App {
         this.windowRef.addEventListener(LOADER_STAGE_EVENT, this.onLoaderStage);
         this.pageBackgroundController.initialize();
         this.chromeController.initialize();
+        this.initializeAuthUi();
         this.setVisualizationAvailability({ d3: false, three: false });
         this.bindRuntimeListeners();
         this.updateViewportMetrics();
         this.chromeController.showForeground();
         this.focusAndSelectUrlInput();
         this.handleInitialUrlParam();
+    }
+
+    initializeAuthUi() {
+        this.authSignInLink?.addEventListener("click", () => this.openAuthModal("signin"));
+        this.authSignUpLink?.addEventListener("click", () => this.openAuthModal("signup"));
+        this.authSignOutLink?.addEventListener("click", async () => {
+            await this.apiService.signOut();
+            await this.updateAuthLinks();
+        });
+        this.authCloseButton?.addEventListener("click", () => this.closeAuthModal());
+        this.authModalBackdrop?.addEventListener("click", () => this.closeAuthModal());
+        this.authForm?.addEventListener("submit", this.onAuthFormSubmit);
+        this.authBuyCreditsButton?.addEventListener("click", () => this.buyCredits());
+
+        const supabase = this.apiService.getSupabaseClient();
+        supabase.auth.onAuthStateChange?.(() => {
+            void this.updateAuthLinks();
+        });
+        void this.updateAuthLinks();
+    }
+
+    openAuthModal(mode = "signin") {
+        this.authMode = mode === "signup" ? "signup" : "signin";
+        if (this.authCardTitle != null) {
+            this.authCardTitle.textContent = this.authMode === "signup" ? "Sign up" : "Sign in";
+        }
+        if (this.authSubmitButton != null) {
+            this.authSubmitButton.textContent = this.authMode === "signup" ? "Sign up" : "Sign in";
+        }
+        if (this.authStatusMessage != null) {
+            this.authStatusMessage.textContent = "";
+        }
+        if (this.authModal != null) {
+            this.authModal.hidden = false;
+            this.authModal.setAttribute("aria-hidden", "false");
+        }
+        this.authEmailInput?.focus?.();
+    }
+
+    closeAuthModal() {
+        if (this.authModal == null) {
+            return;
+        }
+
+        this.authModal.hidden = true;
+        this.authModal.setAttribute("aria-hidden", "true");
+    }
+
+    async onAuthFormSubmit(event) {
+        event?.preventDefault?.();
+        const email = this.authEmailInput?.value?.trim() ?? "";
+        const password = this.authPasswordInput?.value ?? "";
+
+        if (!email || !password) {
+            if (this.authStatusMessage != null) {
+                this.authStatusMessage.textContent = "Email and password are required.";
+            }
+            return;
+        }
+
+        const authMethod = this.authMode === "signup"
+            ? this.apiService.signUpWithPassword.bind(this.apiService)
+            : this.apiService.signInWithPassword.bind(this.apiService);
+
+        const { error } = await authMethod({ email, password });
+        if (error) {
+            if (this.authStatusMessage != null) {
+                this.authStatusMessage.textContent = error.message ?? "Authentication failed.";
+            }
+            return;
+        }
+
+        if (this.authStatusMessage != null) {
+            this.authStatusMessage.textContent = this.authMode === "signup"
+                ? "Account created. Check your email if confirmation is required."
+                : "Signed in.";
+        }
+        await this.updateAuthLinks();
+    }
+
+    async updateAuthLinks() {
+        let user = null;
+        try {
+            const { data } = await this.apiService.getCurrentUser();
+            user = data?.user ?? null;
+        } catch (error) {
+            console.warn("[auth] could not read current user", error);
+        }
+        const isSignedIn = user != null;
+
+        if (this.authSignInLink != null) {
+            this.authSignInLink.hidden = isSignedIn;
+        }
+        if (this.authSignUpLink != null) {
+            this.authSignUpLink.hidden = isSignedIn;
+        }
+        if (this.authLinksSeparator != null) {
+            this.authLinksSeparator.hidden = isSignedIn;
+        }
+        if (this.authSignOutLink != null) {
+            this.authSignOutLink.hidden = !isSignedIn;
+            this.authSignOutLink.textContent = isSignedIn ? `Sign out ${user.email ?? ""}`.trim() : "Sign out";
+        }
+    }
+
+    async buyCredits({ amountUsd = 10 } = {}) {
+        const { data, error } = await this.apiService.createCheckoutSession({ amountUsd });
+        if (error || !data?.checkout_url) {
+            if (this.authStatusMessage != null) {
+                this.authStatusMessage.textContent = error?.message ?? data?.error ?? "Could not start checkout.";
+            }
+            if (error?.context?.status === 401) {
+                this.openAuthModal("signin");
+            }
+            return false;
+        }
+
+        this.windowRef.location.assign(data.checkout_url);
+        return true;
     }
 
     onLoaderStage(event) {
@@ -1104,7 +1265,11 @@ class App {
             this.articleUrlDisplay.innerHTML = "";
         }
 
-        if (articleUrl && this.articleUrlDisplay) {
+        if (articleUrl && this.articleUrlDisplay && articleModel.mode === "company_pair") {
+            const span = this.documentRef.createElement("span");
+            span.textContent = articleUrl;
+            this.articleUrlDisplay.appendChild(span);
+        } else if (articleUrl && this.articleUrlDisplay) {
             const link = this.documentRef.createElement("a");
             link.href = articleUrl.startsWith("http") ? articleUrl : `https://${articleUrl}`;
             link.target = "_blank";

@@ -1729,8 +1729,8 @@ class ArticleD3Graph {
     };
 
     addNode(this.createNode("top-owner", articleModel.investigationModel?.topOwner, "topOwner", "Top owner", 56));
-    addNode(this.createNode("article-subject", articleModel.articleSubject, "articleSubject", "Article subject", 52));
-    addNode(this.createNode("news-site", articleModel.newsSite, "newsSite", "News site", 52));
+    addNode(this.createNode("article-subject", articleModel.articleSubject, "articleSubject", articleModel.subjectNodeLabel ?? "Article subject", 52));
+    addNode(this.createNode("news-site", articleModel.newsSite, "newsSite", articleModel.newsSiteNodeLabel ?? "News site", 52));
 
     if (!hasDirectSubjectOwnership) {
       addLink({
@@ -1766,10 +1766,10 @@ class ArticleD3Graph {
       id: "news-site-direct-article-subject",
       source: "news-site",
       target: "article-subject",
-      label: "wrote about",
+      label: articleModel.subjectRelationLabel ?? "wrote about",
       kind: "direct",
       data: {
-        relation: "wrote about",
+        relation: articleModel.subjectRelationLabel ?? "wrote about",
         source: articleModel.newsSite,
         target: articleModel.articleSubject
       }

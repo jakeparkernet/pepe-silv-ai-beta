@@ -567,7 +567,7 @@ class ArticleView extends View {
       this.newsSiteToArticleSubjectRelationship.setEndpointNudges(arrowLayout.nudgeFrom, arrowLayout.nudgeTo);
       this.newsSiteToArticleSubjectRelationship.setTapeLabelMirrored(true);
       this.addToRoot(this.newsSiteToArticleSubjectRelationship.getRootGroup());
-      this.newsSiteToArticleSubjectRelationship.setModel(new RelationshipModel({ relation: "wrote about" }));
+      this.newsSiteToArticleSubjectRelationship.setModel(new RelationshipModel({ relation: this.model?.subjectRelationLabel ?? "wrote about" }));
     }
     const newsSiteToArticleSubjectPoints = this.getEntityConnectionPoints(this.newsSiteView, this.articleSubjectView);
     this.newsSiteToArticleSubjectRelationship.setEndpoints(
@@ -621,7 +621,7 @@ class ArticleView extends View {
       this.newsSiteToArticleSubjectRelationship.setEndpointNudges(arrowLayout.nudgeFrom, arrowLayout.nudgeTo);
       this.newsSiteToArticleSubjectRelationship.setTapeLabelMirrored(true);
       this.addToRoot(this.newsSiteToArticleSubjectRelationship.getRootGroup());
-      this.newsSiteToArticleSubjectRelationship.setModel(new RelationshipModel({ relation: "wrote about" }));
+      this.newsSiteToArticleSubjectRelationship.setModel(new RelationshipModel({ relation: this.model?.subjectRelationLabel ?? "wrote about" }));
     }
     const newsSiteToArticleSubjectPoints = this.getEntityConnectionPoints(this.newsSiteView, this.articleSubjectView);
     this.newsSiteToArticleSubjectRelationship.setEndpoints(

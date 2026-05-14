@@ -22,6 +22,12 @@
 </head>
 
 <body>
+    <nav id="auth-links" aria-label="Account">
+        <button id="auth-sign-in-link" type="button">Sign in</button>
+        <span id="auth-links-separator" aria-hidden="true">/</span>
+        <button id="auth-sign-up-link" type="button">Sign up</button>
+        <button id="auth-sign-out-link" type="button" hidden>Sign out</button>
+    </nav>
     <div id="page-background">
         <div class="page-background-plane">
             <div class="page-background-layer page-background-layer-sharp"></div>
@@ -90,9 +96,28 @@
         <div id="mobile-bottom-shell">
             <form id="url-input-container" novalidate>
                 <input id="url-input" placeholder="Enter the URL of a news article to scan for financial conflicts."
-                    type="url"></input>
+                    type="text" autocomplete="off"></input>
+                <div id="company-pair-input-container" hidden>
+                    <section class="company-pair-input-section" aria-label="First company">
+                        <label for="company-a-name">Company A</label>
+                        <input id="company-a-name" class="company-pair-name-input" type="text" autocomplete="off" placeholder="Company name">
+                        <textarea id="company-a-context" class="company-pair-context-input" rows="3" placeholder="Optional context or URL"></textarea>
+                    </section>
+                    <section class="company-pair-input-section" aria-label="Second company">
+                        <label for="company-b-name">Company B</label>
+                        <input id="company-b-name" class="company-pair-name-input" type="text" autocomplete="off" placeholder="Company name">
+                        <textarea id="company-b-context" class="company-pair-context-input" rows="3" placeholder="Optional context or URL"></textarea>
+                    </section>
+                </div>
                 <div id="url-submit-button-container">
                     <div id="url-submit-button" role="button" tabindex="0" aria-label="Submit URL"></div>
+                </div>
+                <div id="company-pair-actions" hidden>
+                    <button id="company-pair-submit-button" type="button">Find Common Influence</button>
+                    <div id="company-pair-research-actions" hidden>
+                        <button id="company-pair-research-button" type="button">Request Research</button>
+                        <button id="company-pair-buy-credits-button" type="button">Buy Credits</button>
+                    </div>
                 </div>
             </form>
             <div id="url-submit-loading-message" aria-live="polite" hidden>Submitted, loading</div>
@@ -103,6 +128,23 @@
             <div id="submit-status-message" aria-live="polite"></div>
             <div id="submit-status-timer" aria-hidden="true"></div>
         </div>
+    </div>
+    <div id="auth-modal" hidden aria-hidden="true">
+        <div id="auth-modal-backdrop"></div>
+        <section id="auth-card" role="dialog" aria-modal="true" aria-labelledby="auth-card-title">
+            <button id="auth-close-button" type="button" aria-label="Close account dialog">Close</button>
+            <h2 id="auth-card-title">Sign in</h2>
+            <p id="auth-card-copy">Use an account to buy credits and request new company research.</p>
+            <form id="auth-form">
+                <input id="auth-email-input" type="email" autocomplete="email" placeholder="Email" required>
+                <input id="auth-password-input" type="password" autocomplete="current-password" placeholder="Password" required>
+                <button id="auth-submit-button" type="submit">Sign in</button>
+            </form>
+            <div id="auth-credit-actions">
+                <button id="auth-buy-credits-button" type="button">Buy $10 credits</button>
+            </div>
+            <div id="auth-status-message" aria-live="polite"></div>
+        </section>
     </div>
     <script>
         (() => {

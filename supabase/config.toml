@@ -30,7 +30,8 @@ port = 54322
 # Port used by db diff command to initialize the shadow database.
 shadow_port = 54320
 # Maximum amount of time to wait for health check when starting the local database.
-health_timeout = "2m"
+# The installed Supabase CLI rejects db.health_timeout in project config.
+# health_timeout = "2m"
 # The database major version to use. This has to be the same as your remote database's. Run `SHOW
 # server_version;` on the remote database to check.
 major_version = 17
@@ -379,6 +380,36 @@ deno_version = 2
 
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
+
+[functions.get-or-enqueue]
+verify_jwt = false
+
+[functions.get-evidence-batch]
+verify_jwt = false
+
+[functions.check-rss-feed]
+verify_jwt = false
+
+[functions.investigation_start]
+verify_jwt = false
+
+[functions.process-queued-articles]
+verify_jwt = false
+
+[functions.company-pair-lookup]
+verify_jwt = false
+
+[functions.company-pair-research-start]
+verify_jwt = false
+
+[functions.create-checkout-session]
+verify_jwt = false
+
+[functions.stripe-webhook]
+verify_jwt = false
+
+[functions.safe-remove-old-articles]
+verify_jwt = false
 
 [analytics]
 enabled = true

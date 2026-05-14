@@ -392,6 +392,108 @@ class ArticleApiService {
         return this.parseJsonRecursively(ownershipTreeResult.data);
     }
 
+    buildCompanyPairArticleObject(rawLookupData) {
+        const data = this.parseJsonRecursively(rawLookupData ?? {});
+        const ownershipTreeObj = data.ownership_tree_row ?? data.ownershipTreeObj ?? data.ownership_tree_obj ?? null;
+
+        if (ownershipTreeObj == null) {
+            return null;
+        }
+
+        const companyAName =
+            data.company_a_entity?.name ??
+            data.company_a?.name ??
+            ownershipTreeObj.investigation_data?.article_subject?.name ??
+            "Company A";
+        const companyBName =
+            data.company_b_entity?.name ??
+            data.company_b?.name ??
+            ownershipTreeObj.investigation_data?.news_site?.name ??
+            "Company B";
+        const pairLabel = `${companyAName} / ${companyBName}`;
+
+        return {
+            mode: "company_pair",
+            article: {
+                id: data.company_pair_request_id ?? ownershipTreeObj.id,
+                url: pairLabel,
+                status: "complete",
+                mode: "company_pair",
+                ownership_tree_id: ownershipTreeObj.id
+            },
+            ownershipTreeObj,
+            ownership_tree: ownershipTreeObj.ownership_tree ?? null,
+            investigation_prepass_results: data.prepass ?? null,
+            company_pair: {
+                company_a: data.company_a ?? null,
+                company_b: data.company_b ?? null,
+                company_a_entity: data.company_a_entity ?? null,
+                company_b_entity: data.company_b_entity ?? null
+            }
+        };
+    }
+
+    async lookupCompanyPair(payload, supabase = this.getSupabaseClient()) {
+        const { data, error } = await supabase.functions.invoke("company-pair-lookup", {
+            body: payload
+        });
+
+        if (error) {
+            return { data: null, error, articleObject: null };
+        }
+
+        const parsedData = this.parseJsonRecursively(data);
+        return {
+            data: parsedData,
+            error: null,
+            articleObject: this.buildCompanyPairArticleObject(parsedData)
+        };
+    }
+
+    async startCompanyPairResearch(payload, supabase = this.getSupabaseClient()) {
+        const { data, error } = await supabase.functions.invoke("company-pair-research-start", {
+            body: payload
+        });
+
+        return {
+            data: this.parseJsonRecursively(data),
+            error
+        };
+    }
+
+    async createCheckoutSession({ amountUsd = 10 } = {}, supabase = this.getSupabaseClient()) {
+        const { data, error } = await supabase.functions.invoke("create-checkout-session", {
+            body: {
+                amount_usd: amountUsd
+            }
+        });
+
+        return {
+            data: this.parseJsonRecursively(data),
+            error
+        };
+    }
+
+    async getSession(supabase = this.getSupabaseClient()) {
+        return await supabase.auth.getSession();
+    }
+
+    async getCurrentUser(supabase = this.getSupabaseClient()) {
+        return await supabase.auth.getUser();
+    }
+
+    async signInWithPassword({ email, password }, supabase = this.getSupabaseClient()) {
+        return await supabase.auth.signInWithPassword({ email, password });
+    }
+
+    async signUpWithPassword({ email, password }, supabase = this.getSupabaseClient()) {
+        return await supabase.auth.signUp({ email, password });
+    }
+
+    async signOut(supabase = this.getSupabaseClient()) {
+        return await supabase.auth.signOut();
+    }
+
     async getArticleByUrl(targetUrl, supabase = this.getSupabaseClient()) {
         this.logger?.log?.("[submit-flow] getArticleByUrl start", {
             targetUrl

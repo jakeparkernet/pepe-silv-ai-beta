@@ -151,6 +151,9 @@ http://localhost:3000
 
 The website talks directly to your Supabase project and reads / writes investigation state from there.
 
+For production hosting on Cloudflare Pages, use the deployment runbook in
+`docs/deployment/cloudflare-pages.md`.
+
 ### 3. Chrome extension
 
 To load the extension locally:
@@ -284,6 +287,20 @@ The repo uses a fairly large environment surface. The list below focuses on vari
 - `COORDINATOR_ENQUEUE_PATH`
 - `COORDINATOR_HEALTH_TIMEOUT_MS`
 - `COORDINATOR_HEALTH_INTERVAL_MS`
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+- `SITE_URL`
+- `PUBLIC_SITE_URL`
+
+### Company Pair Credits Settings
+
+The migration `supabase/migrations/202605080001_company_pair_credits.sql` adds these Supabase `settings` rows:
+
+- `company_pair_search_requires_paid_lookup`: set to `true` to require sign-in for two-company lookup; with a nonzero lookup cost this also requires credits.
+- `company_pair_lookup_cost_usd`: immediate credit cost for the lookup API call; defaults to `0`.
+- `company_pair_research_min_reserve_usd`: credits reserved before dispatching paid research.
+- `company_pair_markup_usd`: configurable platform markup added to OpenRouter and Fly.io costs.
+- `fly_io_cost_per_second`: Fly.io worker runtime cost multiplier for paid research settlement.
 
 ## Important Runtime Notes
 

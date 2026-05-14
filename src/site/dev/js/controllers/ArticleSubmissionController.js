@@ -4,6 +4,7 @@ const DEFAULT_SUBMIT_STATUS_INPUT_CLEAR_DELAY_MS = 5000;
 const DEFAULT_SUBMIT_STATUS_POLL_DELAY_MS = 400;
 const NOT_APPLICABLE_STATUS_MESSAGE = "Article not about a specific company or product";
 const FAILED_STATUS_MESSAGE = "Article research failed, come back later";
+const COMPANY_PAIR_RESEARCH_MESSAGE = "This common-influence search has not been researched yet. Sign in and buy credits to request it.";
 const FOREGROUND_SEARCH_VISIBLE_CLASS = "foreground-search-visible";
 
 function noop() {}
@@ -47,6 +48,17 @@ export class ArticleSubmissionController {
         this.dom = {
             foreground: dom.foreground ?? null,
             urlInput: dom.urlInput ?? null,
+            urlInputContainer: dom.urlInputContainer ?? null,
+            companyPairInputContainer: dom.companyPairInputContainer ?? null,
+            companyANameInput: dom.companyANameInput ?? null,
+            companyAContextInput: dom.companyAContextInput ?? null,
+            companyBNameInput: dom.companyBNameInput ?? null,
+            companyBContextInput: dom.companyBContextInput ?? null,
+            companyPairActions: dom.companyPairActions ?? null,
+            companyPairSubmitButton: dom.companyPairSubmitButton ?? null,
+            companyPairResearchActions: dom.companyPairResearchActions ?? null,
+            companyPairResearchButton: dom.companyPairResearchButton ?? null,
+            companyPairBuyCreditsButton: dom.companyPairBuyCreditsButton ?? null,
             submitButton: dom.submitButton ?? null,
             submitButtonContainer: dom.submitButtonContainer ?? null,
             submitStatusMessage: dom.submitStatusMessage ?? null,
@@ -60,7 +72,11 @@ export class ArticleSubmissionController {
             getArticleByUrl: api.getArticleByUrl ?? null,
             getArticleQueueRowByUrl: api.getArticleQueueRowByUrl ?? null,
             fetchOwnershipTreeById: api.fetchOwnershipTreeById ?? null,
-            parseJsonRecursively: api.parseJsonRecursively ?? ((value) => value)
+            parseJsonRecursively: api.parseJsonRecursively ?? ((value) => value),
+            lookupCompanyPair: api.lookupCompanyPair ?? null,
+            startCompanyPairResearch: api.startCompanyPairResearch ?? null,
+            createCheckoutSession: api.createCheckoutSession ?? null,
+            getCurrentUser: api.getCurrentUser ?? null
         };
 
         this.chrome = {
@@ -117,11 +133,23 @@ export class ArticleSubmissionController {
         this.submitStatusPollDelayMs = constants.submitStatusPollDelayMs ?? DEFAULT_SUBMIT_STATUS_POLL_DELAY_MS;
 
         this.isManualUrlSubmitMode = false;
+        this.isCompanyPairMode = false;
+        this.pendingCompanyPairPayload = null;
         this.isSubmitInteractionLocked = false;
         this.pendingSubmitStatusResetToken = 0;
         this.articleStatusPollToken = 0;
         this.hasSubmittedValidArticleUrl = false;
         this.windowRef.__pepeSubmitLocked = false;
+
+        this.dom.companyPairSubmitButton?.addEventListener("click", (event) => {
+            void this.onCompanyPairSubmitClicked(event);
+        });
+        this.dom.companyPairResearchButton?.addEventListener("click", (event) => {
+            void this.onCompanyPairResearchClicked(event);
+        });
+        this.dom.companyPairBuyCreditsButton?.addEventListener("click", (event) => {
+            void this.onBuyCreditsClicked(event);
+        });
     }
 
     normalizeUserUrl(raw) {
@@ -146,6 +174,97 @@ export class ArticleSubmissionController {
 
         const params = new URLSearchParams(this.windowRef.location?.search ?? "");
         return this.normalizeUserUrl(params.get("url") ?? "");
+    }
+
+    parseCompanyPairSplit(rawValue) {
+        const value = String(rawValue ?? "");
+        const match = value.match(/^(\S+)\s+(.*)$/);
+        if (!match) {
+            return null;
+        }
+
+        return {
+            companyAName: match[1].trim(),
+            companyBName: match[2].trim()
+        };
+    }
+
+    buildCompanyPairPayload() {
+        const companyAName = this.dom.companyANameInput?.value?.trim() ?? "";
+        const companyBName = this.dom.companyBNameInput?.value?.trim() ?? "";
+        const companyAContext = this.dom.companyAContextInput?.value?.trim() ?? "";
+        const companyBContext = this.dom.companyBContextInput?.value?.trim() ?? "";
+
+        return {
+            company_a: {
+                name: companyAName,
+                context: companyAContext
+            },
+            company_b: {
+                name: companyBName,
+                context: companyBContext
+            }
+        };
+    }
+
+    enterCompanyPairMode({ companyAName = "", companyBName = "" } = {}) {
+        if (this.isCompanyPairMode) {
+            return;
+        }
+
+        this.isCompanyPairMode = true;
+        this.pendingCompanyPairPayload = null;
+        this.stopArticleStatusPolling();
+        this.hideArticleStatusProgress();
+        this.hideSubmitStatusMessage();
+        this.hideSupportedSites();
+        this.setSubmitInteractionLocked(false);
+        this.dom.urlInputContainer?.classList.add("company-pair-mode");
+
+        if (this.dom.companyPairInputContainer != null) {
+            this.dom.companyPairInputContainer.hidden = false;
+        }
+        if (this.dom.companyPairActions != null) {
+            this.dom.companyPairActions.hidden = false;
+        }
+        if (this.dom.companyPairResearchActions != null) {
+            this.dom.companyPairResearchActions.hidden = true;
+        }
+
+        if (this.dom.companyANameInput != null && companyAName) {
+            this.dom.companyANameInput.value = companyAName;
+        }
+        if (this.dom.companyBNameInput != null && companyBName) {
+            this.dom.companyBNameInput.value = companyBName;
+        }
+        if (this.dom.urlInput != null) {
+            this.dom.urlInput.value = "";
+        }
+
+        this.updateSubmitButtonVisibility();
+        this.timers.requestAnimationFrame?.(() => {
+            if ((this.dom.companyBNameInput?.value ?? "").trim().length === 0) {
+                this.dom.companyBNameInput?.focus?.();
+                return;
+            }
+            this.dom.companyBContextInput?.focus?.();
+        });
+    }
+
+    exitCompanyPairMode() {
+        this.isCompanyPairMode = false;
+        this.pendingCompanyPairPayload = null;
+        this.dom.urlInputContainer?.classList.remove("company-pair-mode");
+
+        if (this.dom.companyPairInputContainer != null) {
+            this.dom.companyPairInputContainer.hidden = true;
+        }
+        if (this.dom.companyPairActions != null) {
+            this.dom.companyPairActions.hidden = true;
+        }
+        if (this.dom.companyPairResearchActions != null) {
+            this.dom.companyPairResearchActions.hidden = true;
+        }
     }
 
     getQueueStatusMessage(articleObject) {
@@ -475,6 +594,10 @@ export class ArticleSubmissionController {
     }
 
     onSubmitButtonPointerDown() {
+        if (this.isCompanyPairMode) {
+            return;
+        }
+
         if (this.normalizeUserUrl(this.dom.urlInput?.value ?? "") == null) {
             return;
         }
@@ -504,6 +627,12 @@ export class ArticleSubmissionController {
             return;
         }
 
+        const split = this.parseCompanyPairSplit(this.dom.urlInput?.value ?? "");
+        if (!isPasteEvent && split != null) {
+            this.enterCompanyPairMode(split);
+            return;
+        }
+
         if (!isPasteEvent) {
             this.isManualUrlSubmitMode = true;
         }
@@ -521,6 +650,7 @@ export class ArticleSubmissionController {
 
         const shouldAutoSubmit =
             !this.isManualUrlSubmitMode &&
+            !this.isCompanyPairMode &&
             (this.dom.urlInput?.value ?? "").trim().length === 0;
 
         this.logger?.log?.("[submit-flow] onUrlInputPasted", {
@@ -541,6 +671,12 @@ export class ArticleSubmissionController {
 
             if ((this.dom.urlInput?.value ?? "").trim().length === 0) {
                 this.resetUrlInputMode();
+                return;
+            }
+
+            const split = this.parseCompanyPairSplit(this.dom.urlInput?.value ?? "");
+            if (split != null) {
+                this.enterCompanyPairMode(split);
                 return;
             }
 
@@ -569,6 +705,12 @@ export class ArticleSubmissionController {
             return;
         }
 
+        if (this.isCompanyPairMode) {
+            this.dom.submitButton.style.visibility = "hidden";
+            this.dom.submitButtonContainer?.classList.remove("is-visible");
+            return;
+        }
+
         const hasValue = this.dom.urlInput.value.trim().length > 0;
         const isValidUrl = this.normalizeUserUrl(this.dom.urlInput.value) != null;
 
@@ -593,6 +735,18 @@ export class ArticleSubmissionController {
             this.dom.urlInput.readOnly = this.isSubmitInteractionLocked;
         }
 
+        const pairInputs = [
+            this.dom.companyANameInput,
+            this.dom.companyAContextInput,
+            this.dom.companyBNameInput,
+            this.dom.companyBContextInput
+        ];
+        for (const input of pairInputs) {
+            if (input != null) {
+                input.readOnly = this.isSubmitInteractionLocked;
+            }
+        }
+
         if (this.dom.submitButtonContainer != null) {
             this.dom.submitButtonContainer.classList.toggle("is-locked", this.isSubmitInteractionLocked);
             this.dom.submitButtonContainer.setAttribute(
@@ -608,6 +762,7 @@ export class ArticleSubmissionController {
     resetUrlInputMode() {
         this.cancelPendingSubmitStatusReset();
         this.isManualUrlSubmitMode = false;
+        this.exitCompanyPairMode();
         this.hasSubmittedValidArticleUrl = false;
         this.setForegroundSearchVisible(true);
         this.setSubmitInteractionLocked(false);
@@ -641,6 +796,10 @@ export class ArticleSubmissionController {
 
     async onSubmitClicked(event) {
         event?.preventDefault?.();
+        if (this.isCompanyPairMode) {
+            return await this.onCompanyPairSubmitClicked(event);
+        }
+
         if (this.isSubmitInteractionLocked) {
             return false;
         }
@@ -648,6 +807,12 @@ export class ArticleSubmissionController {
         this.stopArticleStatusPolling();
         this.hideArticleStatusProgress();
         this.hasSubmittedValidArticleUrl = false;
+
+        const split = this.parseCompanyPairSplit(this.dom.urlInput?.value ?? "");
+        if (split != null) {
+            this.enterCompanyPairMode(split);
+            return false;
+        }
 
         const normalizedUrl = this.normalizeUserUrl(this.dom.urlInput?.value ?? "");
         this.logger?.log?.("[submit-flow] onSubmitClicked", {
@@ -741,6 +906,150 @@ export class ArticleSubmissionController {
             source: "initial-submit",
             targetUrl: normalizedUrl
         });
+    }
+
+    async onCompanyPairSubmitClicked(event) {
+        event?.preventDefault?.();
+        if (this.isSubmitInteractionLocked) {
+            return false;
+        }
+
+        const payload = this.buildCompanyPairPayload();
+        if (!payload.company_a.name || !payload.company_b.name) {
+            this.setForegroundSearchVisible(true);
+            this.showForeground();
+            this.showSubmitStatusMessage("Enter two company names.");
+            return false;
+        }
+        if (payload.company_a.name.toLowerCase() === payload.company_b.name.toLowerCase()) {
+            this.setForegroundSearchVisible(true);
+            this.showForeground();
+            this.showSubmitStatusMessage("Enter two different companies.");
+            return false;
+        }
+
+        this.pendingCompanyPairPayload = payload;
+        this.setSubmitInteractionLocked(true);
+        this.hideArticleStatusProgress();
+        this.hideSubmitStatusMessage();
+        if (this.dom.companyPairResearchActions != null) {
+            this.dom.companyPairResearchActions.hidden = true;
+        }
+
+        let lookupResult = null;
+        try {
+            lookupResult = await this.api.lookupCompanyPair?.(payload);
+        } catch (error) {
+            this.logger?.error?.("[company-pair] lookup failed", error);
+            this.showSubmitStatusMessage("Could not check this company pair.");
+            this.setSubmitInteractionLocked(false);
+            return false;
+        }
+
+        if (lookupResult?.error != null) {
+            this.logger?.error?.("[company-pair] lookup error", lookupResult.error);
+            const status = lookupResult.error?.context?.status ?? null;
+            this.showSubmitStatusMessage(status === 401 ? "Sign in to run this search." : "Could not check this company pair.");
+            this.setSubmitInteractionLocked(false);
+            return false;
+        }
+
+        if (lookupResult?.articleObject != null) {
+            await this.renderResolvedArticle(lookupResult.articleObject, {
+                source: "company-pair-lookup",
+                targetUrl: null
+            });
+            return true;
+        }
+
+        this.setForegroundSearchVisible(true);
+        this.showForeground();
+        if (lookupResult?.data?.company_a?.name && lookupResult?.data?.company_b?.name) {
+            this.pendingCompanyPairPayload = {
+                company_a: {
+                    name: lookupResult.data.company_a.name,
+                    context: lookupResult.data.company_a.context ?? payload.company_a.context
+                },
+                company_b: {
+                    name: lookupResult.data.company_b.name,
+                    context: lookupResult.data.company_b.context ?? payload.company_b.context
+                }
+            };
+        }
+        this.showSubmitStatusMessage(lookupResult?.data?.message ?? COMPANY_PAIR_RESEARCH_MESSAGE);
+        if (this.dom.companyPairResearchActions != null) {
+            this.dom.companyPairResearchActions.hidden = false;
+        }
+        this.setSubmitInteractionLocked(false);
+        return false;
+    }
+
+    async onCompanyPairResearchClicked(event) {
+        event?.preventDefault?.();
+        const payload = this.pendingCompanyPairPayload ?? this.buildCompanyPairPayload();
+
+        if (!payload.company_a.name || !payload.company_b.name) {
+            this.showSubmitStatusMessage("Enter two company names.");
+            return false;
+        }
+        if (payload.company_a.name.toLowerCase() === payload.company_b.name.toLowerCase()) {
+            this.showSubmitStatusMessage("Enter two different companies.");
+            return false;
+        }
+
+        this.setSubmitInteractionLocked(true);
+        let result = null;
+        try {
+            result = await this.api.startCompanyPairResearch?.(payload);
+        } catch (error) {
+            this.logger?.error?.("[company-pair] research start failed", error);
+            this.showSubmitStatusMessage("Could not request research.");
+            this.setSubmitInteractionLocked(false);
+            return false;
+        }
+
+        if (result?.error != null || result?.data?.ok === false) {
+            const status = result?.error?.context?.status ?? result?.data?.status ?? null;
+            const message = status === 401
+                ? "Sign in before requesting research."
+                : status === 402
+                    ? "Not enough credits. Buy credits first."
+                    : result?.data?.error ?? "Could not request research.";
+            this.showSubmitStatusMessage(message);
+            if (this.dom.companyPairResearchActions != null) {
+                this.dom.companyPairResearchActions.hidden = false;
+            }
+            this.setSubmitInteractionLocked(false);
+            return false;
+        }
+
+        this.showSubmitStatusMessage("Research requested. Check back soon for the ownership tree.");
+        if (this.dom.companyPairResearchActions != null) {
+            this.dom.companyPairResearchActions.hidden = false;
+        }
+        this.setSubmitInteractionLocked(false);
+        return true;
+    }
+
+    async onBuyCreditsClicked(event) {
+        event?.preventDefault?.();
+        let result = null;
+        try {
+            result = await this.api.createCheckoutSession?.({ amountUsd: 10 });
+        } catch (error) {
+            this.logger?.error?.("[credits] checkout failed", error);
+            this.showSubmitStatusMessage("Could not start checkout.");
+            return false;
+        }
+
+        if (result?.error != null || !result?.data?.checkout_url) {
+            const status = result?.error?.context?.status ?? null;
+            this.showSubmitStatusMessage(status === 401 ? "Sign in before buying credits." : "Could not start checkout.");
+            return false;
+        }
+
+        this.windowRef.location.assign(result.data.checkout_url);
+        return true;
     }
 
     async handlePendingArticleState(targetUrl, articleObject) {

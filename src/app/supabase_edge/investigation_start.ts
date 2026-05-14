@@ -286,6 +286,38 @@ function buildEnqueuePayload(rawUrl: string, prefetched?: NormalizedPrefetched) 
   };
 }
 
+function buildCompanyPairEnqueuePayload(requestRow: Record<string, unknown>) {
+  const session_id = `sess_${crypto.randomUUID()}`;
+  const job_id = crypto.randomUUID();
+  const requestId = String(requestRow.id ?? "");
+  const companyAName = String(requestRow.company_a_name ?? "");
+  const companyBName = String(requestRow.company_b_name ?? "");
+
+  return {
+    session_id,
+    job_spec: {
+      type: "company_pair_investigation",
+      params: {
+        id: job_id,
+        input: {
+          request_id: requestId,
+          user_id: requestRow.user_id ?? null,
+          credit_reservation_id: requestRow.credit_reservation_id ?? null,
+          company_a: {
+            name: companyAName,
+            context: String(requestRow.company_a_context ?? ""),
+          },
+          company_b: {
+            name: companyBName,
+            context: String(requestRow.company_b_context ?? ""),
+          },
+        },
+      },
+      dedupe_key: `company-pair:${requestId}`,
+    },
+  };
+}
+
 function joinUrl(baseUrl: string, path: string): string {
   const normalizedBase = baseUrl.replace(/\/+$/, "");
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
@@ -864,6 +896,197 @@ async function enqueueCoordinatorJob(args: {
   };
 }
 
+async function dispatchCompanyPairRequest(args: {
+  supabase: ReturnType<typeof createClient>;
+  requestRow: Record<string, unknown>;
+  requestId: string;
+  flyApiHostname: string;
+  flyToken: string;
+  appName: string;
+  coordinatorBaseUrl: string;
+  pepeApiKey: string;
+  healthPath: string;
+  enqueuePath: string;
+  healthTimeoutMs: number;
+  healthIntervalMs: number;
+}) {
+  const {
+    supabase,
+    requestRow,
+    requestId,
+    flyApiHostname,
+    flyToken,
+    appName,
+    coordinatorBaseUrl,
+    pepeApiKey,
+    healthPath,
+    enqueuePath,
+    healthTimeoutMs,
+    healthIntervalMs,
+  } = args;
+
+  const companyPairRequestId = typeof requestRow.id === "string" ? requestRow.id : null;
+  const requestStatus = typeof requestRow.status === "string" ? requestRow.status : null;
+  const alreadyRequested = requestRow.remote_requested_at !== null && requestRow.remote_requested_at !== undefined;
+
+  if (!companyPairRequestId) {
+    return {
+      did_call_remote: false,
+      dispatch_result: { ok: false, reason: "request_missing_id" },
+      request: requestRow,
+    };
+  }
+
+  if (!["queued", "failed"].includes(requestStatus ?? "") || alreadyRequested) {
+    return {
+      did_call_remote: false,
+      dispatch_result: {
+        ok: false,
+        reason: alreadyRequested ? "already_requested" : "request_not_dispatchable",
+        request_status: requestStatus,
+      },
+      request: requestRow,
+    };
+  }
+
+  const markRes = await supabase
+    .from("company_pair_requests")
+    .update({
+      status: "queued",
+      remote_requested_at: new Date().toISOString(),
+    })
+    .eq("id", companyPairRequestId)
+    .is("remote_requested_at", null)
+    .select("*")
+    .maybeSingle();
+
+  if (markRes.error) {
+    return {
+      did_call_remote: false,
+      dispatch_result: { ok: false, reason: "request_mark_failed", details: markRes.error.message },
+      request: requestRow,
+    };
+  }
+  if (!markRes.data) {
+    return {
+      did_call_remote: false,
+      dispatch_result: { ok: false, reason: "request_already_claimed" },
+      request: requestRow,
+    };
+  }
+
+  let didCallRemote = false;
+  let dispatchResult: Record<string, unknown> | null = null;
+  let machineIdForCleanup: string | null = null;
+  let leaseNonceForCleanup: string | null = null;
+
+  try {
+    const claimRes = await claimPooledMachine({
+      flyApiHostname,
+      flyToken,
+      appName,
+      requestId,
+    });
+    if (!claimRes.ok) {
+      dispatchResult = {
+        ok: false,
+        reason: claimRes.reason ?? "claim_failed",
+        claim_result: claimRes,
+      };
+    } else {
+      machineIdForCleanup = claimRes.machine_id;
+      leaseNonceForCleanup = claimRes.lease_nonce;
+      const startRes = await startClaimedMachine({
+        flyApiHostname,
+        flyToken,
+        appName,
+        machineId: claimRes.machine_id,
+        leaseNonce: claimRes.lease_nonce,
+      });
+      if (!startRes.ok) {
+        dispatchResult = {
+          ok: false,
+          reason: startRes.reason ?? "start_failed",
+          start_result: startRes,
+        };
+      } else {
+        const healthRes = await waitForCoordinatorHealth({
+          baseUrl: coordinatorBaseUrl,
+          healthPath,
+          timeoutMs: Number.isFinite(healthTimeoutMs) ? healthTimeoutMs : 30000,
+          intervalMs: Number.isFinite(healthIntervalMs) ? healthIntervalMs : 500,
+          machineId: claimRes.machine_id,
+          requestId,
+        });
+        if (!healthRes.ok) {
+          dispatchResult = {
+            ok: false,
+            reason: healthRes.reason ?? "health_timeout",
+            health_result: healthRes,
+          };
+        } else {
+          const enqueuePayload = buildCompanyPairEnqueuePayload(markRes.data);
+          const enqueueRes = await enqueueCoordinatorJob({
+            baseUrl: coordinatorBaseUrl,
+            enqueuePath,
+            apiKey: pepeApiKey,
+            payload: enqueuePayload,
+            machineId: claimRes.machine_id,
+          });
+          if (!enqueueRes.ok) {
+            dispatchResult = {
+              ok: false,
+              reason: enqueueRes.reason ?? "enqueue_failed",
+              enqueue_result: enqueueRes,
+            };
+          } else {
+            didCallRemote = true;
+            dispatchResult = {
+              ok: true,
+              machine_id: claimRes.machine_id,
+              start_result: startRes,
+              health_result: healthRes,
+              enqueue_result: enqueueRes,
+            };
+            await supabase
+              .from("company_pair_requests")
+              .update({
+                status: "in-progress",
+                machine_id: claimRes.machine_id,
+              })
+              .eq("id", companyPairRequestId);
+          }
+        }
+      }
+    }
+  } finally {
+    if (!didCallRemote) {
+      await supabase
+        .from("company_pair_requests")
+        .update({
+          remote_requested_at: null,
+          error: typeof dispatchResult?.reason === "string" ? dispatchResult.reason : "remote_not_dispatched",
+        })
+        .eq("id", companyPairRequestId);
+    }
+    if (machineIdForCleanup && leaseNonceForCleanup) {
+      await releaseFlyMachineLease(flyApiHostname, flyToken, appName, machineIdForCleanup, leaseNonceForCleanup);
+    }
+  }
+
+  const finalRequestRes = await supabase
+    .from("company_pair_requests")
+    .select("*")
+    .eq("id", companyPairRequestId)
+    .maybeSingle();
+
+  return {
+    did_call_remote: didCallRemote,
+    dispatch_result: dispatchResult,
+    request: finalRequestRes.data ?? markRes.data,
+  };
+}
+
 serve(async (req) => {
   const requestId = makeRequestId();
 
@@ -890,9 +1113,11 @@ serve(async (req) => {
       queue_id?: unknown;
       url?: unknown;
       prefetched?: unknown;
+      company_pair_request_id?: unknown;
     };
 
     const requestQueueId = typeof body.queue_id === "string" ? body.queue_id : null;
+    const companyPairRequestId = typeof body.company_pair_request_id === "string" ? body.company_pair_request_id : null;
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseServiceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -930,6 +1155,52 @@ serve(async (req) => {
       return jsonResponse(500, {
         error: "Unable to resolve fly scale limit from settings.",
         details: flyScaleRes,
+        request_id: requestId,
+      });
+    }
+
+    if (companyPairRequestId) {
+      const requestLookup = await supabase
+        .from("company_pair_requests")
+        .select("*")
+        .eq("id", companyPairRequestId)
+        .maybeSingle();
+
+      if (requestLookup.error) {
+        return jsonResponse(500, {
+          error: "Database error loading company pair request.",
+          details: requestLookup.error.message,
+          request_id: requestId,
+        });
+      }
+
+      if (!requestLookup.data) {
+        return jsonResponse(404, {
+          error: "Company pair request not found.",
+          request_id: requestId,
+        });
+      }
+
+      const dispatch = await dispatchCompanyPairRequest({
+        supabase,
+        requestRow: requestLookup.data,
+        requestId,
+        flyApiHostname,
+        flyToken,
+        appName,
+        coordinatorBaseUrl,
+        pepeApiKey,
+        healthPath,
+        enqueuePath,
+        healthTimeoutMs,
+        healthIntervalMs,
+      });
+
+      return jsonResponse(200, {
+        did_call_remote: dispatch.did_call_remote,
+        fly_scale: flyScaleRes.fly_scale,
+        dispatch_result: dispatch.dispatch_result,
+        company_pair_request: dispatch.request,
         request_id: requestId,
       });
     }

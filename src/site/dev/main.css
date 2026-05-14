@@ -265,6 +265,41 @@ body {
     pointer-events: none;
 }
 
+#auth-links {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 10px);
+    right: calc(env(safe-area-inset-right, 0px) + 14px);
+    z-index: 1120;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: rgba(247, 239, 223, 0.82);
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 12px;
+    letter-spacing: 0.03em;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.44);
+    pointer-events: auto;
+}
+
+#auth-links button {
+    border: 0;
+    padding: 0;
+    color: inherit;
+    background: transparent;
+    font: inherit;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+}
+
+#auth-links button:hover {
+    color: #fff7ea;
+}
+
+#auth-links-separator {
+    opacity: 0.56;
+}
+
 #attribution {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
     font-size: 11px;
@@ -857,6 +892,11 @@ body.foreground-search-visible #view-toggle-container {
     text-decoration-thickness: clamp(1px, 0.12vw, 2px);
 }
 
+#article-url-display span {
+    position: relative;
+    color: #f7efdf;
+}
+
 #article-url-display a:hover {
     color: #143a6b;
 }
@@ -1267,6 +1307,203 @@ body.foreground-search-visible #view-toggle-container {
     padding: 0px;
 }
 
+#url-input-container.company-pair-mode {
+    top: 35%;
+    transform: translate(0, -65%);
+    flex-direction: column;
+    gap: 14px;
+}
+
+#url-input-container.company-pair-mode #url-input,
+#url-input-container.company-pair-mode #url-submit-button-container {
+    display: none;
+}
+
+#company-pair-input-container {
+    display: grid;
+    grid-template-columns: minmax(220px, 420px) minmax(220px, 420px);
+    gap: 18px;
+    width: min(88vw, 920px);
+    z-index: 1010;
+}
+
+#company-pair-input-container[hidden],
+#company-pair-actions[hidden],
+#company-pair-research-actions[hidden] {
+    display: none;
+}
+
+.company-pair-input-section {
+    display: grid;
+    gap: 8px;
+    padding: 14px;
+    box-sizing: border-box;
+    border: 1px solid rgba(247, 227, 179, 0.22);
+    border-radius: 18px;
+    background: rgba(18, 12, 8, 0.62);
+    box-shadow: 0 18px 42px rgba(0, 0, 0, 0.24);
+    backdrop-filter: blur(8px);
+}
+
+.company-pair-input-section label {
+    color: rgba(247, 239, 223, 0.9);
+    font-family: "Permanent Marker", cursive;
+    font-size: clamp(15px, 1.4vw, 22px);
+    letter-spacing: 0.03em;
+    text-align: left;
+}
+
+.company-pair-name-input,
+.company-pair-context-input {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 12px;
+    background: rgba(255, 252, 244, 0.96);
+    color: #24180d;
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 15px;
+}
+
+.company-pair-name-input {
+    height: 40px;
+    padding: 0 12px;
+}
+
+.company-pair-context-input {
+    min-height: 86px;
+    resize: vertical;
+    padding: 10px 12px;
+    line-height: 1.35;
+}
+
+#company-pair-actions {
+    display: grid;
+    justify-items: center;
+    gap: 10px;
+    z-index: 1010;
+}
+
+#company-pair-submit-button,
+#company-pair-research-button,
+#company-pair-buy-credits-button,
+#auth-submit-button,
+#auth-buy-credits-button {
+    border: 1px solid rgba(247, 227, 179, 0.42);
+    border-radius: 999px;
+    padding: 10px 17px;
+    color: #24180d;
+    background: linear-gradient(135deg, #f7e3b3, #e8c58c);
+    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.24);
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    cursor: pointer;
+}
+
+#company-pair-research-actions {
+    display: inline-flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+}
+
+#company-pair-buy-credits-button,
+#auth-buy-credits-button {
+    color: rgba(247, 239, 223, 0.92);
+    background: rgba(18, 12, 8, 0.72);
+}
+
+#auth-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 3000;
+    display: grid;
+    place-items: center;
+    padding: 18px;
+    box-sizing: border-box;
+}
+
+#auth-modal[hidden] {
+    display: none;
+}
+
+#auth-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.54);
+    backdrop-filter: blur(7px);
+}
+
+#auth-card {
+    position: relative;
+    width: min(420px, calc(100vw - 36px));
+    padding: 22px;
+    box-sizing: border-box;
+    border: 1px solid rgba(247, 227, 179, 0.2);
+    border-radius: 22px;
+    background: rgba(26, 17, 12, 0.94);
+    color: rgba(247, 239, 223, 0.94);
+    box-shadow: 0 30px 70px rgba(0, 0, 0, 0.42);
+}
+
+#auth-card h2 {
+    margin: 0 0 6px;
+    font-family: "Permanent Marker", cursive;
+    font-size: 28px;
+    font-weight: 700;
+}
+
+#auth-card-copy {
+    margin: 0 0 16px;
+    color: rgba(247, 239, 223, 0.72);
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+#auth-close-button {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    border: 0;
+    padding: 0;
+    color: rgba(247, 239, 223, 0.72);
+    background: transparent;
+    font: inherit;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+}
+
+#auth-form {
+    display: grid;
+    gap: 10px;
+}
+
+#auth-email-input,
+#auth-password-input {
+    height: 42px;
+    padding: 0 12px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 12px;
+    background: rgba(255, 252, 244, 0.96);
+    box-sizing: border-box;
+    font-size: 15px;
+}
+
+#auth-credit-actions {
+    display: flex;
+    justify-content: center;
+    margin-top: 12px;
+}
+
+#auth-status-message {
+    min-height: 18px;
+    margin-top: 12px;
+    color: rgba(247, 239, 223, 0.8);
+    font-size: 13px;
+    text-align: center;
+}
+
 #url-submit-button {
     visibility: hidden;
 }
@@ -1642,6 +1879,43 @@ body.foreground-search-visible #view-toggle-container {
         box-sizing: border-box;
         font-size: 16px;
         text-align: left;
+    }
+
+    #url-input-container.company-pair-mode {
+        top: calc(var(--vv-top) + (var(--vv-height) * 0.44));
+        transform: translateY(-50%);
+        align-items: stretch;
+        gap: 10px;
+    }
+
+    #company-pair-input-container {
+        grid-template-columns: 1fr;
+        width: 100%;
+        gap: 10px;
+    }
+
+    .company-pair-input-section {
+        padding: 11px;
+        border-radius: 16px;
+    }
+
+    .company-pair-input-section label {
+        font-size: 16px;
+    }
+
+    .company-pair-name-input {
+        height: 38px;
+    }
+
+    .company-pair-context-input {
+        min-height: 64px;
+    }
+
+    #company-pair-submit-button,
+    #company-pair-research-button,
+    #company-pair-buy-credits-button {
+        width: 100%;
+        padding: 10px 14px;
     }
 
     #url-input:focus {
