@@ -1,4 +1,14 @@
 const DEFAULT_RECENT_LINK_LIMIT = 100;
+const RECENT_LINK_AUTO_SCROLL_SPEED_PX_PER_SECOND = 10;
+const RECENT_LINK_AUTO_SCROLL_RESUME_DELAY_MS = 6900;
+const RECENT_LINK_AUTO_SCROLL_MAX_FRAME_MS = 64;
+const RECENT_LINK_INTERACTION_EVENTS = [
+    "pointerenter",
+    "pointerdown",
+    "wheel",
+    "touchstart",
+    "focusin"
+];
 
 function normalizeStatusClass(status) {
     return String(status ?? "unknown")
@@ -29,9 +39,21 @@ export class RecentLinksController {
         this.refreshToken = 0;
         this.hasLoaded = false;
         this.rows = [];
+        this.autoScrollFrameId = null;
+        this.autoScrollSetupFrameId = null;
+        this.autoScrollResumeTimerId = null;
+        this.autoScrollLoopHeight = 0;
+        this.autoScrollEnabled = false;
+        this.autoScrollPaused = false;
+        this.autoScrollLastFrameTime = null;
+        this.interactionListenersBound = false;
+        this.handleAutoScrollFrame = this.handleAutoScrollFrame.bind(this);
+        this.handleRecentLinksInteraction = this.handleRecentLinksInteraction.bind(this);
+        this.handleRecentLinksKeydown = this.handleRecentLinksKeydown.bind(this);
     }
 
     initialize() {
+        this.bindInteractionListeners();
         this.hide();
     }
 
@@ -49,8 +71,10 @@ export class RecentLinksController {
             return;
         }
 
+        this.bindInteractionListeners();
         this.root.classList.add("is-visible");
         this.root.setAttribute("aria-hidden", "false");
+        this.scheduleAutoScrollSetup();
     }
 
     hide() {
@@ -59,6 +83,7 @@ export class RecentLinksController {
         }
 
         this.refreshToken += 1;
+        this.stopAutoScroll();
         this.root.classList.remove("is-visible");
         this.root.setAttribute("aria-hidden", "true");
     }
@@ -129,6 +154,8 @@ export class RecentLinksController {
             return;
         }
 
+        this.stopAutoScroll();
+
         const list = this.documentRef.createElement("div");
         list.className = "recent-links-list";
 
@@ -159,9 +186,200 @@ export class RecentLinksController {
         }
 
         this.root.replaceChildren(list);
+        this.root.scrollTop = 0;
         if (list.childElementCount === 0) {
             this.hide();
         }
+    }
+
+    bindInteractionListeners() {
+        if (this.root == null || this.interactionListenersBound) {
+            return;
+        }
+
+        for (const eventName of RECENT_LINK_INTERACTION_EVENTS) {
+            this.root.addEventListener(eventName, this.handleRecentLinksInteraction, { passive: true });
+        }
+
+        this.root.addEventListener("keydown", this.handleRecentLinksKeydown);
+        this.interactionListenersBound = true;
+    }
+
+    scheduleAutoScrollSetup() {
+        if (this.root == null) {
+            return;
+        }
+
+        if (this.autoScrollSetupFrameId != null) {
+            this.windowRef.cancelAnimationFrame(this.autoScrollSetupFrameId);
+        }
+
+        this.autoScrollSetupFrameId = this.windowRef.requestAnimationFrame(() => {
+            this.autoScrollSetupFrameId = null;
+            this.setupAutoScroll();
+        });
+    }
+
+    setupAutoScroll() {
+        if (this.root == null || !this.root.classList.contains("is-visible")) {
+            return;
+        }
+
+        this.stopAutoScroll();
+        this.removeLoopDuplicate();
+        this.root.scrollTop = 0;
+
+        const list = this.root.querySelector(".recent-links-list:not(.recent-links-list-duplicate)");
+        if (list == null || list.childElementCount === 0) {
+            return;
+        }
+
+        const listHeight = list.offsetHeight;
+        const viewportHeight = this.root.clientHeight;
+        if (listHeight <= viewportHeight + 1) {
+            return;
+        }
+
+        const duplicate = list.cloneNode(true);
+        duplicate.classList.add("recent-links-list-duplicate");
+        duplicate.setAttribute("aria-hidden", "true");
+        duplicate.querySelectorAll("a").forEach((link) => {
+            link.tabIndex = -1;
+        });
+        this.root.appendChild(duplicate);
+
+        this.autoScrollLoopHeight = listHeight;
+        this.autoScrollEnabled = true;
+        this.autoScrollPaused = false;
+        this.autoScrollLastFrameTime = null;
+        this.requestAutoScrollFrame();
+    }
+
+    removeLoopDuplicate() {
+        if (this.root == null) {
+            return;
+        }
+
+        this.root.querySelectorAll(".recent-links-list-duplicate").forEach((list) => list.remove());
+    }
+
+    requestAutoScrollFrame() {
+        if (this.autoScrollFrameId != null || !this.autoScrollEnabled || this.autoScrollPaused) {
+            return;
+        }
+
+        this.autoScrollFrameId = this.windowRef.requestAnimationFrame(this.handleAutoScrollFrame);
+    }
+
+    handleAutoScrollFrame(timestamp) {
+        this.autoScrollFrameId = null;
+
+        if (this.root == null || !this.autoScrollEnabled || this.autoScrollPaused) {
+            return;
+        }
+
+        if (this.autoScrollLastFrameTime == null) {
+            this.autoScrollLastFrameTime = timestamp;
+        }
+
+        const elapsedMs = Math.min(timestamp - this.autoScrollLastFrameTime, RECENT_LINK_AUTO_SCROLL_MAX_FRAME_MS);
+        this.autoScrollLastFrameTime = timestamp;
+
+        if (elapsedMs > 0) {
+            this.root.scrollTop += (RECENT_LINK_AUTO_SCROLL_SPEED_PX_PER_SECOND * elapsedMs) / 1000;
+            this.normalizeLoopScrollPosition();
+        }
+
+        this.requestAutoScrollFrame();
+    }
+
+    handleRecentLinksInteraction() {
+        if (!this.autoScrollEnabled) {
+            return;
+        }
+
+        this.normalizeLoopScrollPosition();
+        this.pauseAutoScroll();
+        this.scheduleAutoScrollResume();
+    }
+
+    handleRecentLinksKeydown() {
+        this.handleRecentLinksInteraction();
+    }
+
+    pauseAutoScroll() {
+        if (!this.autoScrollEnabled) {
+            return;
+        }
+
+        this.autoScrollPaused = true;
+        this.autoScrollLastFrameTime = null;
+
+        if (this.autoScrollFrameId != null) {
+            this.windowRef.cancelAnimationFrame(this.autoScrollFrameId);
+            this.autoScrollFrameId = null;
+        }
+    }
+
+    scheduleAutoScrollResume() {
+        this.clearAutoScrollResumeTimer();
+
+        if (!this.autoScrollEnabled) {
+            return;
+        }
+
+        this.autoScrollResumeTimerId = this.windowRef.setTimeout(() => {
+            this.autoScrollResumeTimerId = null;
+            this.resumeAutoScroll();
+        }, RECENT_LINK_AUTO_SCROLL_RESUME_DELAY_MS);
+    }
+
+    resumeAutoScroll() {
+        if (this.root == null || !this.autoScrollEnabled || !this.root.classList.contains("is-visible")) {
+            return;
+        }
+
+        this.normalizeLoopScrollPosition();
+        this.autoScrollPaused = false;
+        this.autoScrollLastFrameTime = null;
+        this.requestAutoScrollFrame();
+    }
+
+    normalizeLoopScrollPosition() {
+        if (this.root == null || this.autoScrollLoopHeight <= 0) {
+            return;
+        }
+
+        if (this.root.scrollTop >= this.autoScrollLoopHeight) {
+            this.root.scrollTop -= this.autoScrollLoopHeight;
+        }
+    }
+
+    clearAutoScrollResumeTimer() {
+        if (this.autoScrollResumeTimerId == null) {
+            return;
+        }
+
+        this.windowRef.clearTimeout(this.autoScrollResumeTimerId);
+        this.autoScrollResumeTimerId = null;
+    }
+
+    stopAutoScroll() {
+        if (this.autoScrollSetupFrameId != null) {
+            this.windowRef.cancelAnimationFrame(this.autoScrollSetupFrameId);
+            this.autoScrollSetupFrameId = null;
+        }
+
+        if (this.autoScrollFrameId != null) {
+            this.windowRef.cancelAnimationFrame(this.autoScrollFrameId);
+            this.autoScrollFrameId = null;
+        }
+
+        this.clearAutoScrollResumeTimer();
+        this.autoScrollLoopHeight = 0;
+        this.autoScrollEnabled = false;
+        this.autoScrollPaused = false;
+        this.autoScrollLastFrameTime = null;
     }
 }
 

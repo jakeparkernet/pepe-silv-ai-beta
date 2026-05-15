@@ -1951,12 +1951,13 @@ body.foreground-search-visible #view-toggle-container {
     padding: 2px 0;
     transform: translateX(-50%);
     box-sizing: border-box;
+    overflow-x: hidden;
     overflow-y: auto;
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
     transition: opacity 260ms ease, visibility 260ms ease;
 }
 
@@ -1967,16 +1968,9 @@ body.foreground-search-visible #view-toggle-container {
 }
 
 #recent-links-dashboard::-webkit-scrollbar {
-    width: 6px;
-}
-
-#recent-links-dashboard::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-#recent-links-dashboard::-webkit-scrollbar-thumb {
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.18);
+    display: none;
+    width: 0;
+    height: 0;
 }
 
 .recent-links-list {
