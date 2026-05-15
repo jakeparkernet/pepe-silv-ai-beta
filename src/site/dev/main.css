@@ -367,6 +367,27 @@ html.has-build-commit-hash #auth-links {
     text-decoration: underline;
 }
 
+#other-project-link {
+    max-width: min(86vw, 620px);
+    text-align: center;
+    pointer-events: auto;
+}
+
+#other-project-link a {
+    color: #f0e4ca;
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.25;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    white-space: normal;
+}
+
+#other-project-link a:hover {
+    color: #fff4da;
+}
+
 #attribution.light-mode,
 #attribution.light-mode a {
     color: #646464;
@@ -1741,6 +1762,14 @@ body.foreground-search-visible #view-toggle-container {
         width: calc(var(--vv-width) - 24px);
         max-width: calc(var(--vv-width) - 24px);
         font-size: clamp(12px, 4vw, 18px);
+    }
+
+    #other-project-link {
+        max-width: calc(var(--vv-width) - 24px);
+    }
+
+    #other-project-link a {
+        font-size: 11px;
     }
 
     #detail-panel {
