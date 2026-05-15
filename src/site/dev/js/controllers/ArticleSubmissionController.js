@@ -847,7 +847,18 @@ export class ArticleSubmissionController {
             return;
         }
 
-        if (!this.isSupportedSiteUrl(normalizedUrl)) {
+        let isSupportedUrl = this.isSupportedSiteUrl(normalizedUrl);
+
+        if (!isSupportedUrl && event?.allowExistingQueueUrl === true) {
+            const queueResult = await this.api.getArticleQueueRowByUrl?.(normalizedUrl);
+            if (!this.isSubmitFlowActive(submitToken)) {
+                return false;
+            }
+
+            isSupportedUrl = queueResult?.error == null && queueResult?.data != null;
+        }
+
+        if (!isSupportedUrl) {
             this.setForegroundSearchVisible(true);
             this.showForeground();
             this.showSubmitStatusMessage("Unsupported site");

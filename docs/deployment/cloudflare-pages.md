@@ -15,6 +15,28 @@ This site should run on Cloudflare Pages as a static frontend only. Supabase rem
 
 Before moving DNS, preserve every existing record for `callback.pepesilv.ai`, Supabase verification, Stripe, email, and any Fly/AWS callbacks. Cloudflare Pages should not host or proxy those runtime endpoints in this deployment.
 
+## Repairing Git Auto-Deploys
+
+If a push to `main` does not create a new Cloudflare deployment entry, verify the Cloudflare Pages Git integration before debugging the build. A build failure creates a deployment with logs; no deployment entry usually means the Pages project is not connected to the repo, production branch deployments are disabled, or the Cloudflare GitHub App no longer has access to the repository.
+
+From this repo, run a dry check:
+
+```bash
+CLOUDFLARE_ACCOUNT_ID="..." \
+CLOUDFLARE_API_TOKEN="..." \
+scripts/repair_cloudflare_pages_git.sh
+```
+
+If the script reports a GitHub-backed project with fixable settings, apply the repair:
+
+```bash
+CLOUDFLARE_ACCOUNT_ID="..." \
+CLOUDFLARE_API_TOKEN="..." \
+scripts/repair_cloudflare_pages_git.sh --apply
+```
+
+The repair enables production auto-deploys from `main` and normalizes the build command, output directory, and root directory. It intentionally refuses to patch a non-GitHub-backed project; if the project is a Direct Upload project or points at the wrong GitHub account/repo, create a new Git-integrated Pages project connected to `jakeparkernet/pepe-silv-ai-beta`, copy the environment variables and custom domains, then remove the old project after the new one is serving `pepesilv.ai`.
+
 ## Supabase Edge Functions
 
 The browser calls these functions directly through Supabase:

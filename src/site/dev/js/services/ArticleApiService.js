@@ -422,6 +422,24 @@ class ArticleApiService {
             .maybeSingle();
     }
 
+    async getRecentArticleQueueRows({ limit = 100 } = {}, supabase = this.getSupabaseClient()) {
+        const safeLimit = Math.max(1, Math.min(100, Number(limit) || 100));
+        const { data, error } = await supabase
+            .from("article_queue")
+            .select("id,url,status,ownership_tree_id,created_at")
+            .order("created_at", { ascending: false })
+            .limit(safeLimit);
+
+        if (error != null) {
+            return { data: null, error };
+        }
+
+        return {
+            data: this.parseJsonRecursively(data ?? []),
+            error: null
+        };
+    }
+
     async getOrEnqueueArticleQueueRow(targetUrl, supabase = this.getSupabaseClient()) {
         const normalizedTargetUrl = this.normalizeUserUrl(targetUrl);
 

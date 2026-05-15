@@ -536,6 +536,7 @@ body.foreground-search-visible #view-toggle-container {
 #submit-status-message,
 #submit-status-timer,
 #supported-sites,
+#recent-links-dashboard,
 #support-buttons,
 #support-cta-button {
     pointer-events: auto;
@@ -1938,4 +1939,121 @@ body.foreground-search-visible #view-toggle-container {
 #supported-sites.is-hidden {
     opacity: 0;
     max-height: 0;
+}
+
+#recent-links-dashboard {
+    position: absolute;
+    top: calc(31% + 84px);
+    left: 50%;
+    z-index: 1010;
+    width: min(78vw, 780px);
+    max-height: min(28vh, 260px);
+    padding: 2px 0;
+    transform: translateX(-50%);
+    box-sizing: border-box;
+    overflow-y: auto;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+    transition: opacity 260ms ease, visibility 260ms ease;
+}
+
+#recent-links-dashboard.is-visible {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+}
+
+#recent-links-dashboard::-webkit-scrollbar {
+    width: 6px;
+}
+
+#recent-links-dashboard::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#recent-links-dashboard::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.18);
+}
+
+.recent-links-list {
+    display: grid;
+    gap: 2px;
+}
+
+.recent-link-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: 14px;
+    min-height: 18px;
+    padding: 2px 4px;
+    border-radius: 4px;
+    color: rgba(255, 255, 255, 0.24);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    font-size: clamp(9px, 0.82vw, 12px);
+    line-height: 1.35;
+    text-decoration: none;
+    text-shadow: 0 1px 8px rgba(0, 0, 0, 0.72);
+    outline: none;
+    transition: color 120ms ease, background-color 120ms ease;
+}
+
+.recent-link-row:hover,
+.recent-link-row:focus-visible {
+    color: rgba(255, 255, 255, 0.74);
+    background: rgba(255, 255, 255, 0.055);
+}
+
+.recent-link-row:focus-visible {
+    box-shadow: 0 0 0 1px rgba(247, 227, 179, 0.38);
+}
+
+.recent-link-url {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.recent-link-status {
+    color: rgba(247, 227, 179, 0.34);
+    font-size: 0.86em;
+    white-space: nowrap;
+}
+
+.recent-link-status-complete .recent-link-status {
+    color: rgba(182, 226, 176, 0.38);
+}
+
+.recent-link-status-failed .recent-link-status,
+.recent-link-status-timeout .recent-link-status {
+    color: rgba(238, 171, 152, 0.38);
+}
+
+@media (max-width: 768px) {
+    #recent-links-dashboard {
+        position: fixed;
+        top: calc(var(--mobile-url-input-bottom, calc(var(--vv-top) + (var(--vv-height) * 0.44) + 30px)) + 58px);
+        left: calc(var(--vv-left) + var(--mobile-shell-padding));
+        width: calc(var(--vv-width) - (var(--mobile-shell-padding) * 2));
+        max-height: min(26vh, 220px);
+        transform: none;
+    }
+
+    .recent-link-row {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0;
+        min-height: 28px;
+        padding: 4px 8px;
+        font-size: 11px;
+        line-height: 1.25;
+    }
+
+    .recent-link-status {
+        font-size: 10px;
+    }
 }

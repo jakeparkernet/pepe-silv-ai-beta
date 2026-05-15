@@ -6,6 +6,7 @@
 // import { SummaryBannerController } from "./controllers/SummaryBannerController.js";
 // import { DebugController } from "./controllers/DebugController.js";
 // import { ArticleSubmissionController } from "./controllers/ArticleSubmissionController.js";
+// import { RecentLinksController } from "./controllers/RecentLinksController.js";
 // import { TextService } from "./services/TextService.js";
 // import { InstancedMeshPool } from "./utils/AssetPool.js";
 // import { TrashMan } from "./utils/TrashMan.js";
@@ -31,6 +32,7 @@ let DetailPanelController;
 let SummaryBannerController;
 let DebugController;
 let ArticleSubmissionController;
+let RecentLinksController;
 let TextService;
 let InstancedMeshPool;
 let TrashMan;
@@ -132,6 +134,7 @@ class App {
         this.submitStatusMessage = document.getElementById("submit-status-message");
         this.submitStatusTimer = document.getElementById("submit-status-timer");
         this.supportedSites = document.getElementById("supported-sites");
+        this.recentLinksDashboard = document.getElementById("recent-links-dashboard");
         this.threeCanvas = document.getElementById("three-canvas");
         this.d3CanvasContainer = document.getElementById("d3-canvas-container");
         this.viewToggleContainer = document.getElementById("view-toggle-container");
@@ -188,6 +191,15 @@ class App {
 
         this.apiService = new ArticleApiService({
             supportedSitesText: this.supportedSites?.textContent ?? "",
+            logger: console
+        });
+
+        this.recentLinksController = new RecentLinksController({
+            root: this.recentLinksDashboard,
+            api: {
+                getRecentArticleQueueRows: (options) => this.apiService.getRecentArticleQueueRows(options),
+                normalizeUserUrl: (raw) => this.normalizeUserUrl(raw)
+            },
             logger: console
         });
 
@@ -286,6 +298,8 @@ class App {
                 setForegroundInteractive: (isInteractive) => this.chromeController.setForegroundInteractive(isInteractive),
                 hidePageBackground: () => this.hidePageBackground(),
                 activateThreeCanvas: () => this.activateThreeCanvas(),
+                showSupportedSites: () => this.setSupportedSitesVisible(true),
+                hideSupportedSites: () => this.setSupportedSitesVisible(false),
                 updateAddressBarUrlParam: (urlValue) => this.updateAddressBarUrlParam(urlValue)
             },
             visualization: {
@@ -320,6 +334,7 @@ class App {
         new TrashMan(this);
         this.exposeGlobalApp();
         this.windowRef.addEventListener(LOADER_STAGE_EVENT, this.onLoaderStage);
+        this.recentLinksController.initialize();
         this.pageBackgroundController.initialize();
         this.chromeController.initialize();
         void this.initializeAuthUi();
@@ -864,6 +879,7 @@ class App {
             return;
         }
 
+        this.hideRecentLinks();
         this.urlInput.value = "";
         this.resetUrlInputMode();
         this.urlInput.value = initialUrl;
@@ -871,7 +887,11 @@ class App {
         this.updateSubmitButtonVisibility();
 
         if (this.normalizeUserUrl(initialUrl) != null) {
-            this.onSubmitClicked();
+            this.onSubmitClicked({
+                type: "initial-url",
+                allowExistingQueueUrl: true,
+                preventDefault() {}
+            });
         }
     }
 
@@ -904,6 +924,7 @@ class App {
         this.startPageBackgroundFocusLoop();
         this.showForeground();
         this.updateSubmitButtonVisibility();
+        this.refreshRecentLinks({ force: true });
         return true;
     }
 
@@ -925,6 +946,10 @@ class App {
 
     getArticleQueueRowByUrl(targetUrl) {
         return this.apiService.getArticleQueueRowByUrl(targetUrl);
+    }
+
+    getRecentArticleQueueRows(options) {
+        return this.apiService.getRecentArticleQueueRows(options);
     }
 
     fetchOwnershipTreeById(ownershipTreeId) {
@@ -1076,6 +1101,42 @@ class App {
         return this.submissionController.hideSupportedSites();
     }
 
+    isRecentLinksHomepageEligible() {
+        const hasArticleUrl = this.getInitialArticleUrl() != null;
+        const hasInputValue = (this.urlInput?.value ?? "").trim().length > 0;
+        return !hasArticleUrl && !hasInputValue;
+    }
+
+    setSupportedSitesVisible(isVisible = true) {
+        if (this.supportedSites != null) {
+            this.supportedSites.classList.toggle("is-hidden", !isVisible);
+            this.supportedSites.style.opacity = isVisible ? "1" : "0";
+        }
+
+        if (isVisible && this.isRecentLinksHomepageEligible()) {
+            this.refreshRecentLinks();
+            return;
+        }
+
+        this.hideRecentLinks();
+    }
+
+    refreshRecentLinks({ force = false } = {}) {
+        if (!this.isRecentLinksHomepageEligible()) {
+            this.hideRecentLinks();
+            return;
+        }
+
+        void this.recentLinksController?.refresh?.({
+            force,
+            visible: true
+        });
+    }
+
+    hideRecentLinks() {
+        this.recentLinksController?.hide?.();
+    }
+
     showForeground() {
         this.chromeController.showForeground();
         this.hideArticleStatusProgress();
@@ -1214,14 +1275,22 @@ class App {
     }
 
     onSubmitClicked(event) {
+        this.hideRecentLinks();
         return this.submissionController.onSubmitClicked(event);
     }
 
     onUrlInputChanged(event) {
-        return this.submissionController.onUrlInputChanged(event);
+        const result = this.submissionController.onUrlInputChanged(event);
+        if (this.isRecentLinksHomepageEligible()) {
+            this.refreshRecentLinks();
+        } else {
+            this.hideRecentLinks();
+        }
+        return result;
     }
 
     onUrlInputPasted() {
+        this.hideRecentLinks();
         return this.submissionController.onUrlInputPasted();
     }
 
@@ -1625,6 +1694,9 @@ const RETRIEVAL_LOADER_GROUPS = [
             path: "./controllers/SummaryBannerController.js"
         },
         {
+            path: "./controllers/RecentLinksController.js"
+        },
+        {
             path: "./controllers/ArticleSubmissionController.js"
         },
         {
@@ -1714,6 +1786,7 @@ function bindCoreModules() {
     DetailPanelController = getLoadedModule("controllers.DetailPanelController").DetailPanelController;
     SummaryBannerController = getLoadedModule("controllers.SummaryBannerController").SummaryBannerController;
     ArticleSubmissionController = getLoadedModule("controllers.ArticleSubmissionController").ArticleSubmissionController;
+    RecentLinksController = getLoadedModule("controllers.RecentLinksController").RecentLinksController;
     TrashMan = getLoadedModule("utils.TrashMan").TrashMan;
 }
 
