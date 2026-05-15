@@ -159,6 +159,7 @@ class App {
         this.summaryBanner = document.getElementById("summary-banner");
         this.pageTitle = document.getElementById("page-title");
         this.attribution = document.getElementById("attribution");
+        this.buildCommitHash = document.getElementById("build-commit-hash");
         this.authLinks = document.getElementById("auth-links");
         this.authSignInLink = document.getElementById("auth-sign-in-link");
         this.authSignUpLink = document.getElementById("auth-sign-up-link");
@@ -250,7 +251,7 @@ class App {
                 detailPanel: this.detailPanel,
                 pageTitle: this.pageTitle,
                 attribution: this.attribution,
-                lightModeTargets: [this.articleActionToolbar].filter(Boolean)
+                lightModeTargets: [this.articleActionToolbar, this.buildCommitHash].filter(Boolean)
             },
             skipInitialVisualizationMode: true,
             callbacks: {

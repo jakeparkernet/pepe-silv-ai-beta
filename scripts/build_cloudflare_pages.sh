@@ -10,6 +10,11 @@ rm -rf "$output_dir"
 mkdir -p "$output_dir"
 cp -a "$source_dir/." "$output_dir/"
 
+commit_hash=""
+if [[ -n "${CF_PAGES_COMMIT_SHA:-}" && ${#CF_PAGES_COMMIT_SHA} -ge 7 ]]; then
+    commit_hash="${CF_PAGES_COMMIT_SHA:0:7}"
+fi
+
 js_string() {
     local value="${1:-}"
     value="${value//\\/\\\\}"
@@ -21,6 +26,7 @@ js_string() {
 {
     printf 'window.PEPE_CLERK_PUBLISHABLE_KEY = %s;\n' "$(js_string "${PEPE_CLERK_PUBLISHABLE_KEY:-}")"
     printf 'window.PEPE_CLERK_FRONTEND_API_URL = %s;\n' "$(js_string "${PEPE_CLERK_FRONTEND_API_URL:-}")"
+    printf 'window.PEPE_BUILD_COMMIT_HASH = %s;\n' "$(js_string "$commit_hash")"
 } > "$output_dir/runtime-config.js"
 
 # The app imports Three addons from examples/jsm only. The rest of the Three

@@ -23,6 +23,24 @@
 </head>
 
 <body>
+    <div id="build-commit-hash" hidden aria-label="Build commit"></div>
+    <script>
+        (() => {
+            const hash = String(window.PEPE_BUILD_COMMIT_HASH ?? "").trim();
+            if (!/^[0-9a-f]{7}$/i.test(hash)) {
+                return;
+            }
+
+            const element = document.getElementById("build-commit-hash");
+            if (element == null) {
+                return;
+            }
+
+            element.textContent = hash;
+            element.hidden = false;
+            document.documentElement.classList.add("has-build-commit-hash");
+        })();
+    </script>
     <nav id="auth-links" aria-label="Account">
         <button id="auth-sign-in-link" type="button" hidden>Sign in</button>
         <span id="auth-links-separator" aria-hidden="true" hidden>/</span>
