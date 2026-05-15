@@ -1,5 +1,5 @@
 const DEFAULT_RECENT_LINK_LIMIT = 100;
-const RECENT_LINK_AUTO_SCROLL_SPEED_PX_PER_SECOND = 10;
+const RECENT_LINK_AUTO_SCROLL_SPEED_PX_PER_SECOND = 28;
 const RECENT_LINK_AUTO_SCROLL_RESUME_DELAY_MS = 6900;
 const RECENT_LINK_AUTO_SCROLL_MAX_FRAME_MS = 64;
 const RECENT_LINK_INTERACTION_EVENTS = [
@@ -43,6 +43,7 @@ export class RecentLinksController {
         this.autoScrollSetupFrameId = null;
         this.autoScrollResumeTimerId = null;
         this.autoScrollLoopHeight = 0;
+        this.autoScrollOffsetPx = 0;
         this.autoScrollEnabled = false;
         this.autoScrollPaused = false;
         this.autoScrollLastFrameTime = null;
@@ -249,9 +250,11 @@ export class RecentLinksController {
         this.root.appendChild(duplicate);
 
         this.autoScrollLoopHeight = listHeight;
+        this.autoScrollOffsetPx = 0;
         this.autoScrollEnabled = true;
         this.autoScrollPaused = false;
         this.autoScrollLastFrameTime = null;
+        this.applyAutoScrollTransform();
         this.requestAutoScrollFrame();
     }
 
@@ -260,6 +263,9 @@ export class RecentLinksController {
             return;
         }
 
+        this.root.querySelectorAll(".recent-links-list").forEach((list) => {
+            list.style.removeProperty("transform");
+        });
         this.root.querySelectorAll(".recent-links-list-duplicate").forEach((list) => list.remove());
     }
 
@@ -286,8 +292,9 @@ export class RecentLinksController {
         this.autoScrollLastFrameTime = timestamp;
 
         if (elapsedMs > 0) {
-            this.root.scrollTop += (RECENT_LINK_AUTO_SCROLL_SPEED_PX_PER_SECOND * elapsedMs) / 1000;
+            this.autoScrollOffsetPx += (RECENT_LINK_AUTO_SCROLL_SPEED_PX_PER_SECOND * elapsedMs) / 1000;
             this.normalizeLoopScrollPosition();
+            this.applyAutoScrollTransform();
         }
 
         this.requestAutoScrollFrame();
@@ -350,9 +357,20 @@ export class RecentLinksController {
             return;
         }
 
-        if (this.root.scrollTop >= this.autoScrollLoopHeight) {
-            this.root.scrollTop -= this.autoScrollLoopHeight;
+        if (this.autoScrollOffsetPx >= this.autoScrollLoopHeight) {
+            this.autoScrollOffsetPx %= this.autoScrollLoopHeight;
         }
+    }
+
+    applyAutoScrollTransform() {
+        if (this.root == null) {
+            return;
+        }
+
+        const offset = this.autoScrollEnabled ? this.autoScrollOffsetPx : 0;
+        this.root.querySelectorAll(".recent-links-list").forEach((list) => {
+            list.style.transform = `translate3d(0, ${-offset}px, 0)`;
+        });
     }
 
     clearAutoScrollResumeTimer() {
@@ -377,9 +395,11 @@ export class RecentLinksController {
 
         this.clearAutoScrollResumeTimer();
         this.autoScrollLoopHeight = 0;
+        this.autoScrollOffsetPx = 0;
         this.autoScrollEnabled = false;
         this.autoScrollPaused = false;
         this.autoScrollLastFrameTime = null;
+        this.applyAutoScrollTransform();
     }
 }
 

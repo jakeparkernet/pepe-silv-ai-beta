@@ -1952,7 +1952,7 @@ body.foreground-search-visible #view-toggle-container {
     transform: translateX(-50%);
     box-sizing: border-box;
     overflow-x: hidden;
-    overflow-y: auto;
+    overflow-y: hidden;
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
@@ -1976,6 +1976,7 @@ body.foreground-search-visible #view-toggle-container {
 .recent-links-list {
     display: grid;
     gap: 2px;
+    will-change: transform;
 }
 
 .recent-link-row {
