@@ -353,7 +353,8 @@ html.has-build-commit-hash #auth-links {
     display: none;
 }
 
-#attribution {
+#attribution,
+#other-project {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
     font-size: 11px;
     color: #acacac;
@@ -361,7 +362,8 @@ html.has-build-commit-hash #auth-links {
     white-space: nowrap;
 }
 
-#attribution a {
+#attribution a,
+#other-project a {
     pointer-events: auto;
     color: #acacac;
     text-decoration: underline;
@@ -389,7 +391,9 @@ html.has-build-commit-hash #auth-links {
 }
 
 #attribution.light-mode,
-#attribution.light-mode a {
+#attribution.light-mode a,
+#other-project.light-mode,
+#other-project.light-mode a {
     color: #646464;
     text-shadow: none;
 }
@@ -1764,10 +1768,12 @@ body.foreground-search-visible #view-toggle-container {
         font-size: clamp(12px, 4vw, 18px);
     }
 
+    #other-project,
     #other-project-link {
         max-width: calc(var(--vv-width) - 24px);
     }
 
+    #other-project a,
     #other-project-link a {
         font-size: 11px;
     }
