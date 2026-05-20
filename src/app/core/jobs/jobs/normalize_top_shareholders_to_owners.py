@@ -28,7 +28,7 @@ class NormalizeTopShareholdersToOwners(LlmCallbackJob):
 
         self._max_retries = 1
 
-        self._model = "x-ai/grok-4.1-fast"
+        self._model = "google/gemma-4-31b-it"
 
         self._system_message = f"""
             You are a deterministic JSON-to-JSON information extraction engine.

@@ -10,8 +10,11 @@ This site should run on Cloudflare Pages as a static frontend only. Supabase rem
 - Build command: `bash scripts/build_cloudflare_pages.sh`
 - Build output directory: `dist/cloudflare-pages`
 - Production custom domain: `https://pepesilv.ai`
+- Cloudflare Pages Web Analytics / Insights: `disabled`
 
 `wrangler.toml` also sets `pages_build_output_dir = "dist/cloudflare-pages"` so CLI and Git-based Pages deploys use the same static output directory. The build script copies the static site and prunes unused Three.js demo assets that exceed Cloudflare Pages' 25 MiB per-file limit.
+
+Cloudflare can automatically inject its Web Analytics / Insights script into Pages deployments when that setting is enabled. Leave it off for this site. Brave mobile has been observed to render the recent-links list incorrectly when the injected script is present, while desktop browsers are unaffected.
 
 Before moving DNS, preserve every existing record for `callback.pepesilv.ai`, Supabase verification, Stripe, email, and any Fly/AWS callbacks. Cloudflare Pages should not host or proxy those runtime endpoints in this deployment.
 

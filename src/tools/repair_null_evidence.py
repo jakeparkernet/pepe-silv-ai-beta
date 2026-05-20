@@ -4,7 +4,7 @@ Repairs relationships in Weaviate that have null evidence.
 
 Searches for relationships where evidence_ids is null/empty, then:
 1. Gets source and target entity names
-2. Uses grok 4.1-fast with web search to find evidence for the claim
+2. Uses an LLM with web search to find evidence for the claim
 3. Creates new evidence records in Weaviate
 4. Updates the relationship's evidence_ids
 
@@ -52,7 +52,7 @@ async def get_entity_name(service, entity_id):
     return ""
 
 
-async def find_evidence_for_claim(source_name, relation, target_name, model="x-ai/grok-4.1-fast"):
+async def find_evidence_for_claim(source_name, relation, target_name, model="google/gemma-4-31b-it"):
     """
     Use the LLM to find evidence for a relationship claim.
     Returns list of evidence dicts with excerpt and source.

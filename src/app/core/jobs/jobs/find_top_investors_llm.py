@@ -25,7 +25,7 @@ class FindInvestors(LlmCallbackJob):
 
         self._max_retries = 1
 
-        self._model = "x-ai/grok-4.1-fast"
+        self._model = "google/gemma-4-31b-it"
 
         entity_name = self.input["entity_name"]
 
@@ -44,7 +44,7 @@ class FindInvestors(LlmCallbackJob):
 
             Looking for companies that invested only, not individuals.
 
-            Do not output any <grok:render> tags. Respond only with JSON in the following format:
+            Do not output renderer-specific tags or tool markup. Respond only with JSON in the following format:
             {{
                 "investors": [
                 {{

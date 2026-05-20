@@ -10,12 +10,9 @@ const RECENT_LINK_INTERACTION_EVENTS = [
     "focusin"
 ];
 
-function normalizeStatusClass(status) {
-    return String(status ?? "unknown")
-        .trim()
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "") || "unknown";
+function isTerminalCompleteStatus(status) {
+    const normalizedStatus = String(status ?? "").trim().toLowerCase();
+    return normalizedStatus === "complete" || normalizedStatus === "completed";
 }
 
 export class RecentLinksController {
@@ -120,7 +117,7 @@ export class RecentLinksController {
                 return;
             }
 
-            this.rows = Array.isArray(data) ? data : [];
+            this.rows = Array.isArray(data) ? data.filter((row) => isTerminalCompleteStatus(row?.status)) : [];
             this.hasLoaded = true;
             this.renderRows(this.rows);
 
@@ -167,22 +164,17 @@ export class RecentLinksController {
                 continue;
             }
 
-            const status = String(row?.status ?? "unknown").trim() || "unknown";
             const link = this.documentRef.createElement("a");
-            link.className = `recent-link-row recent-link-status-${normalizeStatusClass(status)}`;
+            link.className = "recent-link-row";
             link.href = href;
             link.title = rawUrl;
-            link.setAttribute("aria-label", `${rawUrl}, status ${status}`);
+            link.setAttribute("aria-label", rawUrl);
 
             const urlText = this.documentRef.createElement("span");
             urlText.className = "recent-link-url";
             urlText.textContent = rawUrl;
 
-            const statusText = this.documentRef.createElement("span");
-            statusText.className = "recent-link-status";
-            statusText.textContent = status;
-
-            link.append(urlText, statusText);
+            link.append(urlText);
             list.appendChild(link);
         }
 

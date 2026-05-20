@@ -20,7 +20,7 @@ class SelectPrimaryCompany(LlmCallbackJob):
 
     async def run(self, platform: str):
         self._platform = platform
-        self._model = "x-ai/grok-4.1-fast"
+        self._model = "google/gemma-4-31b-it"
 
         await super().run(platform)
 

@@ -25,7 +25,7 @@ class FindInvestors(LlmCallbackJob):
 
         self._max_retries = 1
 
-        self._model = "x-ai/grok-4.1-fast"
+        self._model = "google/gemma-4-31b-it"
 
         investors_response = self.input["investors_response"]
 

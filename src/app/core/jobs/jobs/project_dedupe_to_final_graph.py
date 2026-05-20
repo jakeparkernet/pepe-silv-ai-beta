@@ -20,7 +20,7 @@ class ProjectDedupeToFinalGraph(LlmCallbackJob):
         await super().run(platform)
 
         self._max_retries = 1
-        self._model = "x-ai/grok-4.1-fast"
+        self._model = "google/gemma-4-31b-it"
 
         # IMPORTANT: no web tool, this is purely a structural projection.
         # (Do not set plugins.)

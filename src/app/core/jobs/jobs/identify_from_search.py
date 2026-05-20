@@ -23,7 +23,7 @@ class IdentifyFromSearchResults(LlmCallbackJob):
     async def run(self, platform: str):
         await super().run(platform)
 
-        self._model = "x-ai/grok-4.1-fast"
+        self._model = "google/gemma-4-31b-it"
 
         domain = self.input["domain"]
         search_results = self.input["search_results"]

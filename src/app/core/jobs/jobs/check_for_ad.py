@@ -205,7 +205,7 @@ class CheckForAd(LlmCallbackJob):
 
     async def run(self, platform: str):
         self._platform = platform
-        self._model = "x-ai/grok-4.1-fast"
+        self._model = "google/gemma-4-31b-it"
         self._max_retries = 1
 
         await super().run(platform)

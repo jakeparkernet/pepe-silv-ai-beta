@@ -1,6 +1,6 @@
 # Pepe Silv.AI
 
-Pepe Silv.AI is a website and Chrome extension for surfacing financial conflicts of interest in news coverage.
+Pepe Silv.AI is a website, Chrome extension, and investigation backend for surfacing financial conflicts of interest in news coverage.
 
 Given a news article URL, Pepe tries to answer a simple question:
 
@@ -31,8 +31,13 @@ This repository contains the full stack for the product:
   - The Python backend and job system.
   - Contains the coordinator server, runtime, investigation jobs, database abstractions, and AWS/Fly integration.
 - `src/app/supabase_edge`
-  - Supabase Edge Functions.
-  - Handles URL intake, pre-investigation checks, dispatch to Fly machines, queued article processing, and evidence batch fetching.
+  - Source copies for the main Supabase Edge Functions.
+  - Handles URL intake, pre-investigation checks, dispatch to Fly machines, queued article processing, company-pair lookups, Stripe checkout, and evidence batch fetching.
+- `supabase/functions`
+  - Deployable Supabase Edge Function tree.
+  - Mirrors the functions in `src/app/supabase_edge` for the main runtime path and also includes maintenance / diagnostic functions.
+- `src/tools`
+  - Maintenance and repair scripts for Supabase, Weaviate, evidence, ownership trees, and logs.
 
 ## Product Overview
 
@@ -45,6 +50,8 @@ Pepe Silv.AI is built around an investigation pipeline.
 - That job coordinates scraping, article applicability checks, entity resolution, ownership tracing, common-owner detection, ranking, and final persistence.
 - Results are written back to Supabase and then rendered by the website or extension.
 
+The site also supports direct company-pair lookup/research. Signed-in users authenticate with Clerk, buy credits through Stripe, and can reserve credits for deeper company-pair investigations dispatched through the same Fly/Python job runtime.
+
 The current architecture is intentionally pragmatic:
 
 - Supabase stores queue state, finalized ownership trees, and related metadata.
@@ -54,18 +61,15 @@ The current architecture is intentionally pragmatic:
 
 ## Supported Sites
 
-The currently supported-site list is reflected in the website UI. At the time of writing, the list shown in `src/site/dev/index.html` is:
+The authoritative runtime supported-site set comes from the Supabase `sites` table. The homepage also shows a static hint list in `src/site/dev/index.html`:
 
 - `nbcnews.com`
 - `nypost.com`
 - `theverge.com`
-- `cnn.com`
 - `washingtonpost.com`
 - `nytimes.com`
 - `foxnews.com`
-- `abcnew.com`
-
-`cnn.com` is currently hit or miss because of anti-scraping measures.
+- `abcnews.com`
 
 ## Architecture
 
@@ -99,6 +103,8 @@ Key pieces:
 
 The Edge Functions provide the bridge between the client and backend runtime.
 
+The deployable function tree is `supabase/functions`. The main source copies live in `src/app/supabase_edge` and should be kept in sync before deployment.
+
 - `get-or-enqueue.ts`
   - URL normalization, supported-site checks, pre-investigation, queue insertion, and dispatch orchestration.
 - `investigation_start.ts`
@@ -107,6 +113,14 @@ The Edge Functions provide the bridge between the client and backend runtime.
   - Internal batch trigger for queued or deferred work.
 - `get_evidence_batch.ts`
   - Fetches evidence objects by ID for client rendering.
+- `company-pair-lookup.ts`
+  - Resolves two company names and checks for existing common-influence data.
+- `company-pair-research-start.ts`
+  - Starts paid company-pair research after auth and credit checks.
+- `create-checkout-session.ts` and `stripe-webhook.ts`
+  - Handle credit purchases and Stripe settlement.
+
+Additional deployed functions under `supabase/functions`, such as RSS checks, safe cleanup, and Fly diagnostics, are maintenance or operational endpoints rather than the primary browser flow.
 
 ## Full-Stack Setup
 
@@ -171,12 +185,13 @@ The extension currently requests access to:
 
 ### 4. Supabase Edge Functions
 
-This repo includes Supabase Edge Functions under `src/app/supabase_edge`.
+This repo includes source Edge Functions under `src/app/supabase_edge` and deployable function directories under `supabase/functions`.
 
 You will need a Supabase project with:
 
-- the relevant tables such as `article_queue`, `ownership_trees`, `sites`, and `settings`
-- the edge functions deployed
+- the relevant tables such as `article_queue`, `ownership_trees`, `sites`, `settings`, `company_pair_requests`, `credit_ledger`, `credit_reservations`, and `stripe_checkout_sessions`
+- migrations in `supabase/migrations` applied
+- the edge functions in `supabase/functions` deployed
 - service-role access available to the functions
 
 The functions in this repo are written for Deno / Supabase Edge Runtime.
@@ -211,6 +226,7 @@ The repo uses a fairly large environment surface. The list below focuses on vari
 
 ### Python backend
 
+- `APP_CONFIG`
 - `PEPE_API_KEY`
 - `PORT`
 - `BASE_URL`
@@ -223,6 +239,8 @@ The repo uses a fairly large environment surface. The list below focuses on vari
 - `STARTUP_DELAY_SECONDS`
 - `IDEMPOTENCY_DB_PATH`
 - `JOBRUNNER_DEBUG_INLINE`
+- `STATE_DIR`
+- `HMAC_SECRET`
 
 ### Python backend to Supabase
 
@@ -238,6 +256,10 @@ The repo uses a fairly large environment surface. The list below focuses on vari
 - `WEAVIATE_URL`
 - `WEAVIATE_APIKEY`
 - `OPENAI_APIKEY`
+- `AWS_ACCESS_KEY_ID_WEAVIATE`
+- `AWS_SECRET_ACCESS_KEY_WEAVIATE`
+- `AWS_DEFAULT_REGION_WEAVIATE`
+- `S3_BUCKET_WEAVIATE`
 
 ### Python backend to AWS / callback infrastructure
 
@@ -247,6 +269,7 @@ The repo uses a fairly large environment surface. The list below focuses on vari
 - `LAMBDA_ARN`
 - `TEST_MESSAGE`
 - `PEPE_EDGE_KEY`
+- `OPEN_ROUTER`
 - `SCRAPER_API`
 - `BRAVE_API_KEY`
 
@@ -268,6 +291,7 @@ The repo uses a fairly large environment surface. The list below focuses on vari
 - `CLERK_SECRET_KEY` (optional fallback if `CLERK_JWT_KEY` is not set)
 - `CLERK_AUTHORIZED_PARTIES` (comma-separated allowed origins)
 - `INTERNAL_EDGE_API_KEY`
+- `INTERNAL_KEY`
 - `ALLOWED_ORIGINS`
 - `CHROME_EXTENSION_ID`
 - `SCRAPE_PAGE_ARN`
@@ -318,12 +342,14 @@ The migration `supabase/migrations/202605080001_company_pair_credits.sql` adds t
 
 - The website and extension both assume a live Supabase project.
 - The backend assumes callback-based scraping and LLM execution infrastructure.
+- LLM jobs are sent through the OpenRouter-backed callback path; current job-level model overrides use `google/gemma-4-31b-it`.
 - The worker orchestration assumes Fly.io machines are available to lease and start.
 - The job system is designed around asynchronous child-job orchestration, not a single synchronous request-response flow.
+- `supabase/functions` is the deployable Edge Function tree; keep it synchronized with `src/app/supabase_edge` for the mirrored runtime functions.
 
 ## Key Investigation Flow
 
-The main investigation path starts in:
+The main article investigation path starts in:
 
 - `src/app/core/jobs/jobs/investigation_job.py`
 
@@ -338,6 +364,12 @@ At a high level it:
 7. checks for common owners
 8. ranks common owners
 9. persists the final ownership tree and investigation data
+
+The company-pair research path starts in:
+
+- `src/app/core/jobs/jobs/company_pair_investigation.py`
+
+It resolves two submitted company names, builds ownership trees for both, checks common influence, settles reserved credits, and persists a synthetic ownership-tree-style result for client rendering.
 
 ## Development Notes
 
@@ -354,7 +386,9 @@ In practice, that means:
 ```text
 .
 ├── config/
+├── docs/
 ├── run_dev.py
+├── scripts/
 ├── src/
 │   ├── app/
 │   │   ├── core/
@@ -366,6 +400,9 @@ In practice, that means:
 │   │   └── banner/
 │   └── site/
 │       └── dev/
+├── supabase/
+│   ├── functions/
+│   └── migrations/
 └── requirements.txt
 ```
 
@@ -374,9 +411,10 @@ In practice, that means:
 If you want to contribute, the best place to start is by understanding:
 
 - the client submission flow in `src/site/dev/js/app.js`
-- the Supabase intake flow in `src/app/supabase_edge/get-or-enqueue.ts`
-- the Fly dispatch flow in `src/app/supabase_edge/investigation_start.ts`
+- the Supabase intake flow in `src/app/supabase_edge/get-or-enqueue.ts` and `supabase/functions/get-or-enqueue/index.ts`
+- the Fly dispatch flow in `src/app/supabase_edge/investigation_start.ts` and `supabase/functions/investigation_start/index.ts`
 - the Python investigation orchestrator in `src/app/core/jobs/jobs/investigation_job.py`
+- the company-pair research orchestrator in `src/app/core/jobs/jobs/company_pair_investigation.py`
 
 ## Status
 
