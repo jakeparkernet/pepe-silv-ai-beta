@@ -61,6 +61,9 @@ let MATERIAL_GUI_CONFIGS = null;
 
 const LOADER_STAGE_EVENT = "pepe-loader-stage";
 const LOADER_PROGRESS_EVENT = "pepe-loader-progress";
+const COMPANY_PAIR_URL_INPUT_ENABLED = ["1", "true", "yes", "on"].includes(
+    String(window.PEPE_COMPANY_PAIR_URL_INPUT_ENABLED ?? "").trim().toLowerCase()
+);
 
 const TEXT_GUI_CONFIGS = {
     title: {
@@ -321,6 +324,9 @@ class App {
                     this.hidePageBackground();
                     this.stopPageBackgroundFocusLoop();
                 }
+            },
+            constants: {
+                companyPairUrlInputEnabled: COMPANY_PAIR_URL_INPUT_ENABLED
             }
         });
 

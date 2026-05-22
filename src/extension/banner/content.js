@@ -259,11 +259,6 @@
   // =========================
   // Messaging / data helpers
   // =========================
-  const normalizeHost = (hostname) => {
-    const h = String(hostname).trim().toLowerCase();
-    return h.startsWith("www.") ? h.slice(4) : h;
-  };
-
   const sendMessageAsync = (message) => {
     return new Promise((resolve, reject) => {
       chrome.runtime.sendMessage(message, (response) => {
@@ -320,21 +315,6 @@
   };
 
   const loadBannerData = async () => {
-    const domain = normalizeHost(window.location.hostname);
-
-    const whitelistResp = await sendMessageAsync({
-      type: "IS_DOMAIN_WHITELISTED",
-      domain
-    });
-
-    if (!whitelistResp || whitelistResp.ok !== true) {
-      return;
-    }
-
-    if (whitelistResp.isWhitelisted !== true) {
-      return;
-    }
-
     const tryGetResult = async () => {
       const resultResp = await sendMessageAsync({
         type: "GET_RESULT_FOR_URL",
@@ -346,11 +326,15 @@
       }
 
       if (resultResp.result === null) {
-        return { ready: false };
+        return;
       }
 
-      if (resultResp.result.status == "no-op") {
+      if (resultResp.result.status === "no-op" || resultResp.result.status === "unsupported") {
         return;
+      }
+
+      if (resultResp.result.status === "pending") {
+        return { ready: false };
       }
 
       const bannerText = getBannerSummary(resultResp.result);

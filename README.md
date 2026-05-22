@@ -325,6 +325,7 @@ The static site reads these browser globals before `js/app.js` loads. For Cloudf
 
 - `window.PEPE_CLERK_PUBLISHABLE_KEY`
 - `window.PEPE_CLERK_FRONTEND_API_URL`
+- `window.PEPE_COMPANY_PAIR_URL_INPUT_ENABLED`: enables the URL-field company-pair shortcut when set to `true`, `1`, `yes`, or `on`; defaults to disabled.
 
 Supabase third-party Auth also needs Clerk enabled so RLS policies can compare Clerk JWT `sub` claims against credit table `user_id` values.
 

@@ -26,7 +26,7 @@ class CleanPageDataOwnerResult(LlmCallbackJob):
             "owners": self.input["owners"]
         }
         
-        self._model = "google/gemma-4-31b-it"
+        self._model = "x-ai/grok-4.3"
 
         self._system_message = f"""
             You are a validation and filtering engine.

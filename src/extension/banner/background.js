@@ -163,25 +163,6 @@ async function supabaseFetch(path, options = {}) {
   return res.text();
 }
 
-async function isDomainWhitelisted(domain) {
-  const normalizedDomain = normalizeHost(domain);
-
-  if (normalizedDomain.length === 0) {
-    return false;
-  }
-
-  const encoded = encodeURIComponent(normalizedDomain);
-
-  const rows = await supabaseFetch(
-    `/rest/v1/sites?select=id,domain&domain=eq.${encoded}&limit=1`,
-    {
-      method: "GET",
-    }
-  );
-
-  return Array.isArray(rows) && rows.length > 0;
-}
-
 async function getExistingQueueRow(urlKey) {
   const encoded = encodeURIComponent(urlKey);
 
@@ -241,14 +222,14 @@ async function fetchArticleLikeWebsite(targetUrl) {
     const fnData = await invokeGetOrEnqueue(normalizedTargetUrl);
 
     if (!fnData || fnData.site_valid !== true) {
-      return null;
+      return { status: "unsupported" };
     }
 
     queueRow = fnData.queue || null;
   }
 
   if (queueRow === null) {
-    return null;
+    return { status: "unsupported" };
   }
 
   if (queueRow.status === "no-op") {
@@ -258,7 +239,7 @@ async function fetchArticleLikeWebsite(targetUrl) {
   const ownershipTreeId = queueRow.ownership_tree_id;
 
   if (ownershipTreeId == null) {
-    return null;
+    return { status: "pending" };
   }
 
   const ownershipTreeRow = await getOwnershipTreeById(ownershipTreeId);
@@ -271,29 +252,6 @@ async function fetchArticleLikeWebsite(targetUrl) {
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (msg && msg.type === "IS_DOMAIN_WHITELISTED") {
-    (async () => {
-      try {
-        const domain = typeof msg.domain === "string" ? msg.domain : null;
-
-        if (domain === null) {
-          sendResponse({ ok: false, error: "Missing msg.domain (string)" });
-          return;
-        }
-
-        const isWhitelisted = await isDomainWhitelisted(domain);
-        sendResponse({ ok: true, isWhitelisted });
-      } catch (err) {
-        sendResponse({
-          ok: false,
-          error: String(err && err.message ? err.message : err),
-        });
-      }
-    })();
-
-    return true;
-  }
-
   if (msg && msg.type === "GET_RESULT_FOR_URL") {
     (async () => {
       try {

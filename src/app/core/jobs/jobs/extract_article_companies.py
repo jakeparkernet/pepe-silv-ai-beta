@@ -20,7 +20,7 @@ class ExtractArticleCompanies(LlmCallbackJob):
 
     async def run(self, platform: str):
         self._platform = platform
-        self._model = "google/gemma-4-31b-it"
+        self._model = "x-ai/grok-4.3"
 
         await super().run(platform)
 

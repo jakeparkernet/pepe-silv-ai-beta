@@ -28,7 +28,7 @@ class GetMostLikelyEntityFromLlm(LlmCallbackJob):
     async def run(self, platform: str):
         await super().run(platform)
 
-        self._model = "google/gemma-4-31b-it"
+        self._model = "x-ai/grok-4.3"
 
         entities = self.input["entities"]
         if len(entities) == 0:

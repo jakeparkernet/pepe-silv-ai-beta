@@ -27,6 +27,7 @@ js_string() {
     printf 'window.PEPE_CLERK_PUBLISHABLE_KEY = %s;\n' "$(js_string "${PEPE_CLERK_PUBLISHABLE_KEY:-}")"
     printf 'window.PEPE_CLERK_FRONTEND_API_URL = %s;\n' "$(js_string "${PEPE_CLERK_FRONTEND_API_URL:-}")"
     printf 'window.PEPE_BUILD_COMMIT_HASH = %s;\n' "$(js_string "$commit_hash")"
+    printf 'window.PEPE_COMPANY_PAIR_URL_INPUT_ENABLED = %s;\n' "$(js_string "${PEPE_COMPANY_PAIR_URL_INPUT_ENABLED:-false}")"
 } > "$output_dir/runtime-config.js"
 
 # The app imports Three addons from examples/jsm only. The rest of the Three

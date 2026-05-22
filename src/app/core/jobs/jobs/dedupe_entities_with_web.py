@@ -20,7 +20,7 @@ class DedupeEntitiesWithWeb(LlmCallbackJob):
         await super().run(platform)
 
         self._max_retries = 1
-        self._model = "google/gemma-4-31b-it"
+        self._model = "x-ai/grok-4.3"
 
         # Optional: match your other web-enabled jobs
         self._parameters["extra_headers"] = {

@@ -20,7 +20,7 @@ class IdentifyCompanySynthesizeIdentity(LlmCallbackJob):
     async def run(self, platform: str):
         await super().run(platform)
 
-        self._model = "google/gemma-4-31b-it"
+        self._model = "x-ai/grok-4.3"
 
         entity = self.input["entity"]
         name = entity["name"]

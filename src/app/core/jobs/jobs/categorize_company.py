@@ -19,7 +19,7 @@ class CategorizeCompany(LlmCallbackJob):
     async def run(self, platform: str):
         await super().run(platform)
 
-        self._model = "google/gemma-4-31b-it"
+        self._model = "x-ai/grok-4.3"
         
         self._system_message = f"""
         You are a decision-support classifier whose output will be used to determine whether additional investigative resources should be spent.

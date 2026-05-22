@@ -52,7 +52,7 @@ async def get_entity_name(service, entity_id):
     return ""
 
 
-async def find_evidence_for_claim(source_name, relation, target_name, model="google/gemma-4-31b-it"):
+async def find_evidence_for_claim(source_name, relation, target_name, model="x-ai/grok-4.3"):
     """
     Use the LLM to find evidence for a relationship claim.
     Returns list of evidence dicts with excerpt and source.

@@ -25,11 +25,7 @@ async function getCurrentTabUrl() {
 function getDomainFromUrl(url) {
   try {
     const u = new URL(url);
-    let host = u.hostname.toLowerCase();
-    if (host.startsWith("www.")) {
-      host = host.slice(4);
-    }
-    return host;
+    return window.PepeSupportedSites.normalizeHost(u.hostname);
   } catch {
     return null;
   }
@@ -70,12 +66,7 @@ async function init() {
       return;
     }
 
-    const resp = await sendMessageAsync({
-      type: "IS_DOMAIN_WHITELISTED",
-      domain
-    });
-
-    if (!resp || resp.ok !== true || !resp.isWhitelisted) {
+    if (!window.PepeSupportedSites.isSupportedSiteHost(domain)) {
       openBtn.style.opacity = "0.5";
       openBtn.style.pointerEvents = "none";
     }

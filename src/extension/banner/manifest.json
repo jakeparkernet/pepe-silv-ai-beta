@@ -5,7 +5,7 @@
   "description": "Adds the Pepe Silv.AI summary banner to the top of any supported page.",
 
   "permissions": [
-    "tabs"
+    "activeTab"
   ],
 
   "host_permissions": [
@@ -30,7 +30,24 @@
  
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
+      "matches": [
+        "https://abcnews.com/*",
+        "https://*.abcnews.com/*",
+        "https://abcnews.go.com/*",
+        "https://*.abcnews.go.com/*",
+        "https://foxnews.com/*",
+        "https://*.foxnews.com/*",
+        "https://nbcnews.com/*",
+        "https://*.nbcnews.com/*",
+        "https://nypost.com/*",
+        "https://*.nypost.com/*",
+        "https://nytimes.com/*",
+        "https://*.nytimes.com/*",
+        "https://theverge.com/*",
+        "https://*.theverge.com/*",
+        "https://washingtonpost.com/*",
+        "https://*.washingtonpost.com/*"
+      ],
       "js": ["content.js"],
       "run_at": "document_start"
     }

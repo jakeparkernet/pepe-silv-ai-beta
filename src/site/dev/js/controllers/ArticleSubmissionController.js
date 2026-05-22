@@ -132,6 +132,7 @@ export class ArticleSubmissionController {
         this.submitStatusInputClearDelayMs =
             constants.submitStatusInputClearDelayMs ?? DEFAULT_SUBMIT_STATUS_INPUT_CLEAR_DELAY_MS;
         this.submitStatusPollDelayMs = constants.submitStatusPollDelayMs ?? DEFAULT_SUBMIT_STATUS_POLL_DELAY_MS;
+        this.companyPairUrlInputEnabled = constants.companyPairUrlInputEnabled === true;
 
         this.isManualUrlSubmitMode = false;
         this.isCompanyPairMode = false;
@@ -642,10 +643,12 @@ export class ArticleSubmissionController {
             return;
         }
 
-        const split = this.parseCompanyPairSplit(this.dom.urlInput?.value ?? "");
-        if (!isPasteEvent && split != null) {
-            this.enterCompanyPairMode(split);
-            return;
+        if (this.companyPairUrlInputEnabled) {
+            const split = this.parseCompanyPairSplit(this.dom.urlInput?.value ?? "");
+            if (!isPasteEvent && split != null) {
+                this.enterCompanyPairMode(split);
+                return;
+            }
         }
 
         if (!isPasteEvent) {
@@ -689,10 +692,12 @@ export class ArticleSubmissionController {
                 return;
             }
 
-            const split = this.parseCompanyPairSplit(this.dom.urlInput?.value ?? "");
-            if (split != null) {
-                this.enterCompanyPairMode(split);
-                return;
+            if (this.companyPairUrlInputEnabled) {
+                const split = this.parseCompanyPairSplit(this.dom.urlInput?.value ?? "");
+                if (split != null) {
+                    this.enterCompanyPairMode(split);
+                    return;
+                }
             }
 
             if (normalizedUrl == null) {
@@ -824,10 +829,12 @@ export class ArticleSubmissionController {
         this.hasSubmittedValidArticleUrl = false;
         const submitToken = this.invalidateSubmitFlow();
 
-        const split = this.parseCompanyPairSplit(this.dom.urlInput?.value ?? "");
-        if (split != null) {
-            this.enterCompanyPairMode(split);
-            return false;
+        if (this.companyPairUrlInputEnabled) {
+            const split = this.parseCompanyPairSplit(this.dom.urlInput?.value ?? "");
+            if (split != null) {
+                this.enterCompanyPairMode(split);
+                return false;
+            }
         }
 
         const normalizedUrl = this.normalizeUserUrl(this.dom.urlInput?.value ?? "");
