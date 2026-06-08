@@ -74,6 +74,12 @@ serve(async (req) => {
   }
 
   const session = event.data?.object ?? {};
+  const paymentStatus = typeof session.payment_status === "string" ? session.payment_status : "";
+  const checkoutStatus = typeof session.status === "string" ? session.status : "";
+  if (paymentStatus !== "paid" || checkoutStatus !== "complete") {
+    return new Response(JSON.stringify({ ok: false, error: "Checkout session is not paid" }), { status: 400 });
+  }
+
   const userId =
     typeof session.metadata?.clerk_user_id === "string"
       ? session.metadata.clerk_user_id
@@ -90,45 +96,32 @@ serve(async (req) => {
   const supabase = createClient(supabaseUrl, serviceRole, { auth: { persistSession: false } });
   const existing = await supabase
     .from("stripe_checkout_sessions")
-    .select("stripe_session_id, status")
+    .select("stripe_session_id, user_id, status")
     .eq("stripe_session_id", sessionId)
     .maybeSingle();
   if (existing.error) {
     return new Response(JSON.stringify({ ok: false, error: existing.error.message }), { status: 500 });
   }
-
-  if (existing.data?.status !== "paid") {
-    await supabase.from("credit_accounts").upsert({
-      user_id: userId,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: "user_id" });
-
-    await supabase.from("stripe_checkout_sessions").upsert({
-      user_id: userId,
-      stripe_session_id: sessionId,
-      amount_usd: creditsUsd,
-      credits_usd: creditsUsd,
-      status: "paid",
-      metadata: session,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: "stripe_session_id" });
-
-    const ledger = await supabase.from("credit_ledger").insert({
-      user_id: userId,
-      amount_usd: creditsUsd,
-      entry_type: "purchase",
-      stripe_session_id: sessionId,
-      metadata: {
-        stripe_event_id: event.id,
-        pack_id: packId,
-      },
-    });
-    if (ledger.error && ledger.error.code !== "23505") {
-      return new Response(JSON.stringify({ ok: false, error: ledger.error.message }), { status: 500 });
-    }
+  if (existing.data?.user_id && existing.data.user_id !== userId) {
+    return new Response(JSON.stringify({ ok: false, error: "Checkout session user mismatch" }), { status: 409 });
   }
 
-  return new Response(JSON.stringify({ ok: true }), {
+  const settlement = await supabase.rpc("settle_credit_purchase", {
+    p_stripe_session_id: sessionId,
+    p_user_id: userId,
+    p_credits_usd: creditsUsd,
+    p_metadata: {
+      stripe_event_id: event.id,
+      pack_id: packId,
+      stripe_session: session,
+      settled_by: "stripe_webhook",
+    },
+  });
+  if (settlement.error) {
+    return new Response(JSON.stringify({ ok: false, error: settlement.error.message }), { status: 500 });
+  }
+
+  return new Response(JSON.stringify({ ok: true, settlement: settlement.data }), {
     status: 200,
     headers: { "Content-Type": "application/json; charset=utf-8" },
   });

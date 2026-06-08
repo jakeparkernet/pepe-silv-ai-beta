@@ -92,6 +92,16 @@ async function getAuthenticatedUser(req: Request, body: Record<string, unknown>)
   return userId ? { id: userId, email: getClaimEmail(claims) } : null;
 }
 
+async function getStripeCheckoutSession(stripeSecretKey: string, sessionId: string) {
+  const res = await fetch(`https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(sessionId)}`, {
+    headers: {
+      "Authorization": `Bearer ${stripeSecretKey}`,
+    },
+  });
+  const data = await res.json().catch(() => ({}));
+  return { ok: res.ok, status: res.status, data };
+}
+
 serve(async (req) => {
   const origin = req.headers.get("origin");
   if (req.method === "OPTIONS") {
@@ -139,6 +149,63 @@ serve(async (req) => {
       });
       if (prefs.error) return respond(origin, 500, { ok: false, error: prefs.error.message });
       return respond(origin, 200, { ok: true, account_preferences: prefs.data });
+    }
+
+    if (action === "sync_purchase") {
+      const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
+      if (!stripeSecretKey) {
+        return respond(origin, 500, { ok: false, error: "Missing Stripe configuration" });
+      }
+
+      const sessionId = typeof body.stripe_session_id === "string" ? body.stripe_session_id.trim() : "";
+      if (!sessionId) {
+        return respond(origin, 400, { ok: false, error: "Stripe session id is required" });
+      }
+
+      const stripeSession = await getStripeCheckoutSession(stripeSecretKey, sessionId);
+      if (!stripeSession.ok) {
+        return respond(origin, stripeSession.status, {
+          ok: false,
+          error: "Could not verify Stripe checkout session",
+          details: stripeSession.data,
+        });
+      }
+
+      const session = stripeSession.data as Record<string, any>;
+      const sessionUserId = typeof session.metadata?.clerk_user_id === "string"
+        ? session.metadata.clerk_user_id
+        : typeof session.metadata?.user_id === "string"
+          ? session.metadata.user_id
+          : typeof session.client_reference_id === "string"
+            ? session.client_reference_id
+            : "";
+      if (sessionUserId !== userId) {
+        return respond(origin, 403, { ok: false, error: "Checkout session does not belong to this account" });
+      }
+
+      if (session.payment_status !== "paid" || session.status !== "complete") {
+        return respond(origin, 409, { ok: false, error: "Checkout session is not paid" });
+      }
+
+      const creditsUsd = Number(session.metadata?.credits_usd ?? 0);
+      if (!Number.isFinite(creditsUsd) || creditsUsd <= 0) {
+        return respond(origin, 400, { ok: false, error: "Checkout session is missing credit metadata" });
+      }
+
+      const settlement = await supabase.rpc("settle_credit_purchase", {
+        p_stripe_session_id: sessionId,
+        p_user_id: userId,
+        p_credits_usd: creditsUsd,
+        p_metadata: {
+          stripe_session: session,
+          settled_by: "credit_account_sync",
+        },
+      });
+      if (settlement.error) return respond(origin, 500, { ok: false, error: settlement.error.message });
+      return respond(origin, 200, {
+        ok: true,
+        settlement: Array.isArray(settlement.data) ? settlement.data[0] ?? null : settlement.data,
+      });
     }
 
     if (action === "fund_article") {

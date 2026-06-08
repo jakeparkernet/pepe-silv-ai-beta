@@ -367,7 +367,7 @@ class App {
         this.pageBackgroundController.initialize();
         this.chromeController.initialize();
         void this.initializeAuthUi();
-        this.handleCreditReturnParam();
+        void this.handleCreditReturnParam();
         this.setVisualizationAvailability({ d3: false, three: false });
         this.bindRuntimeListeners();
         this.updateViewportMetrics();
@@ -853,23 +853,30 @@ class App {
         this.updateFundingControls(user);
     }
 
-    handleCreditReturnParam() {
+    async handleCreditReturnParam() {
         const url = new URL(this.windowRef.location.href);
         const creditStatus = url.searchParams.get("credits");
         if (creditStatus !== "success" && creditStatus !== "cancelled") {
             return;
         }
+        const stripeSessionId = url.searchParams.get("session_id");
 
         if (creditStatus === "success") {
-            this.setAuthStatusMessage("Credit purchase complete. Balance will update shortly.");
-            this.windowRef.setTimeout(() => {
-                void this.updateAuthLinks();
-            }, 2500);
+            this.setAuthStatusMessage("Credit purchase complete. Updating balance.");
+            if (stripeSessionId != null && stripeSessionId.trim().length > 0) {
+                const { error } = await this.apiService.syncCreditPurchase(stripeSessionId.trim());
+                if (error) {
+                    console.warn("[credits] could not sync purchase", error);
+                    this.setAuthStatusMessage("Credit purchase complete. Balance will update shortly.");
+                }
+            }
+            await this.updateAuthLinks();
         } else {
             this.setAuthStatusMessage("Credit purchase cancelled.");
         }
 
         url.searchParams.delete("credits");
+        url.searchParams.delete("session_id");
         this.windowRef.history.replaceState({}, "", url.toString());
     }
 

@@ -57,6 +57,45 @@ class CreditSourceContractTests(unittest.TestCase):
             with self.subTest(fragment=fragment):
                 self.assertIn(fragment, sql)
 
+    def test_purchase_settlement_is_idempotent_and_shared(self) -> None:
+        sql = read_text("supabase/migrations/202606080002_idempotent_credit_purchase_settlement.sql")
+        webhook = read_text("supabase/functions/stripe-webhook/index.ts")
+        credit_account = read_text("supabase/functions/credit-account/index.ts")
+        checkout = read_text("supabase/functions/create-checkout-session/index.ts")
+        service = read_text("src/site/dev/js/services/ArticleApiService.js")
+        app = read_text("src/site/dev/js/app.js")
+
+        for fragment in [
+            "create or replace function public.settle_credit_purchase",
+            "perform pg_advisory_xact_lock(hashtext(p_stripe_session_id));",
+            "on conflict do nothing",
+            "grant execute on function public.settle_credit_purchase",
+        ]:
+            with self.subTest(source="migration", fragment=fragment):
+                self.assertIn(fragment, sql)
+
+        for fragment in [
+            'paymentStatus !== "paid"',
+            'checkoutStatus !== "complete"',
+            'supabase.rpc("settle_credit_purchase"',
+            'settled_by: "stripe_webhook"',
+        ]:
+            with self.subTest(source="webhook", fragment=fragment):
+                self.assertIn(fragment, webhook)
+
+        for fragment in [
+            'action === "sync_purchase"',
+            "getStripeCheckoutSession",
+            'supabase.rpc("settle_credit_purchase"',
+            'settled_by: "credit_account_sync"',
+        ]:
+            with self.subTest(source="credit_account", fragment=fragment):
+                self.assertIn(fragment, credit_account)
+
+        self.assertIn("credits=success&session_id={CHECKOUT_SESSION_ID}", checkout)
+        self.assertIn("syncCreditPurchase", service)
+        self.assertIn('url.searchParams.get("session_id")', app)
+
     def test_get_or_enqueue_requires_auth_and_debits_new_url_when_flag_enabled(self) -> None:
         source = read_text("supabase/functions/get-or-enqueue/index.ts")
 
@@ -193,6 +232,17 @@ class CreditSourceContractTests(unittest.TestCase):
             with self.subTest(source=source_name):
                 self.assertNotIn(OLD_TESTER_ENV, source)
                 self.assertNotIn("@gmail.com", source)
+
+    def test_edge_function_sources_stay_synced(self) -> None:
+        for function_name, source_path in [
+            ("create-checkout-session", "create-checkout-session.ts"),
+            ("credit-account", "credit-account.ts"),
+            ("stripe-webhook", "stripe-webhook.ts"),
+        ]:
+            with self.subTest(function=function_name):
+                deployed_copy = read_text(f"supabase/functions/{function_name}/index.ts")
+                canonical_copy = read_text(f"src/app/supabase_edge/{source_path}")
+                self.assertEqual(deployed_copy, canonical_copy)
 
     def test_frontend_exposes_account_funding_and_running_cost_controls(self) -> None:
         html = read_text("src/site/dev/index.html")

@@ -179,7 +179,7 @@ serve(async (req) => {
 
     const form = new URLSearchParams();
     form.set("mode", "payment");
-    form.set("success_url", `${siteUrl}/?credits=success`);
+    form.set("success_url", `${siteUrl}/?credits=success&session_id={CHECKOUT_SESSION_ID}`);
     form.set("cancel_url", `${siteUrl}/?credits=cancelled`);
     if (user.email) {
       form.set("customer_email", user.email);

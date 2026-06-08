@@ -780,6 +780,20 @@ class ArticleApiService {
         };
     }
 
+    async syncCreditPurchase(stripeSessionId, supabase = this.getSupabaseClient()) {
+        const { data, error } = await supabase.functions.invoke("credit-account", {
+            body: {
+                action: "sync_purchase",
+                stripe_session_id: stripeSessionId,
+                ...this.getMockAuthBody()
+            }
+        });
+        return {
+            data: this.parseJsonRecursively(data),
+            error
+        };
+    }
+
     async isInvestigationCreditsEnabled(supabase = this.getSupabaseClient()) {
         const { data, error } = await supabase
             .from("site_feature_flags")
