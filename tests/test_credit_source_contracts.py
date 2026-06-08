@@ -231,6 +231,9 @@ class CreditSourceContractTests(unittest.TestCase):
             with self.subTest(fragment=fragment):
                 self.assertIn(fragment, app)
 
+        self.assertIn("const showSignupButtons = testerGateEnabled && !isSignedIn;", app)
+        self.assertIn("const showCreditControls = featureEnabled && isTesterAuthorized;", app)
+
         for fragment in [
             "isInvestigationCreditsEnabled",
             "getAccountPreferences",

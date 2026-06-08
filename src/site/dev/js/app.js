@@ -402,7 +402,7 @@ class App {
         try {
             const flagResult = await this.apiService.isInvestigationCreditsEnabled();
             this.investigationCreditsEnabled = flagResult.data === true;
-            if (!this.investigationCreditsEnabled || !this.testerAccessEnabled) {
+            if (!this.testerAccessEnabled) {
                 await this.updateAuthLinks();
                 return;
             }
@@ -610,7 +610,7 @@ class App {
         }
 
         this.creditTesterAuthorized = isTesterAuthorized;
-        const showSignupButtons = featureEnabled && testerGateEnabled && !isSignedIn;
+        const showSignupButtons = testerGateEnabled && !isSignedIn;
         const showCreditControls = featureEnabled && isTesterAuthorized;
 
         if (this.authSignInLink != null) {
