@@ -217,10 +217,20 @@ class CreditSourceContractTests(unittest.TestCase):
             "window.PEPE_DEFAULT_BASE_URL",
             "window.PEPE_AUTH_MODE",
             "window.PEPE_PAYMENTS_MODE",
+            "window.PEPE_CLERK_PUBLISHABLE_KEY",
+            "window.PEPE_CLERK_FRONTEND_API_URL",
         ]:
             with self.subTest(fragment=fragment):
                 self.assertIn(fragment, api_config)
                 self.assertIn(fragment, runtime_config)
+
+        for fragment in [
+            "DEFAULT_CLERK_PUBLISHABLE_KEY",
+            "pk_test_",
+            "legal-grub-45",
+        ]:
+            with self.subTest(fragment=fragment):
+                self.assertNotIn(fragment, api_config)
 
         for source_name, source in [
             ("app", app),

@@ -1,5 +1,3 @@
-const DEFAULT_CLERK_PUBLISHABLE_KEY = "pk_test_bGVnYWwtZ3J1Yi00NS5jbGVyay5hY2NvdW50cy5kZXYk";
-
 function nonEmptyString(value, fallback = "") {
     const normalized = String(value ?? "").trim();
     return normalized.length > 0 ? normalized : fallback;
@@ -27,7 +25,7 @@ function clerkFrontendApiUrlFromPublishableKey(publishableKey) {
 
 const clerkPublishableKey = nonEmptyString(
     window.PEPE_CLERK_PUBLISHABLE_KEY,
-    nonEmptyString(window.CLERK_PUBLISHABLE_KEY, nonEmptyString(window.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY, DEFAULT_CLERK_PUBLISHABLE_KEY))
+    nonEmptyString(window.CLERK_PUBLISHABLE_KEY, window.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY)
 );
 const clerkFrontendApiUrl = nonEmptyString(
     window.PEPE_CLERK_FRONTEND_API_URL,
