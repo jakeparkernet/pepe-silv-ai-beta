@@ -681,6 +681,7 @@ class App {
         await this.updateAccountPreferences(showSignedInAccountControls ? user : null);
         this.updateFundingControls(isTesterAuthorized ? user : null);
         this.updateRunningCostDisplay();
+        this.refreshRecentLinksIfHomepageEligible();
     }
 
     async buyCredits({ amountUsd = null } = {}) {
@@ -1526,6 +1527,15 @@ class App {
             force,
             visible: true
         });
+    }
+
+    refreshRecentLinksIfHomepageEligible() {
+        if (this.isRecentLinksHomepageEligible()) {
+            this.refreshRecentLinks();
+            return;
+        }
+
+        this.hideRecentLinks();
     }
 
     hideRecentLinks() {

@@ -24,7 +24,8 @@ class ArticleApiService {
         this.maxQueuePollAttempts = options.maxQueuePollAttempts ?? ARTICLE_API_CONFIG.maxQueuePollAttempts;
         this.queuePollDelayMs = options.queuePollDelayMs ?? ARTICLE_API_CONFIG.queuePollDelayMs;
         this.createSupabaseClient = options.createSupabaseClient ?? ((url, key, clientOptions) => createClient(url, key, clientOptions));
-        this.supabaseClient = options.supabaseClient ?? null;
+        this.publicSupabaseClient = options.publicSupabaseClient ?? options.supabaseClient ?? null;
+        this.authenticatedSupabaseClient = options.authenticatedSupabaseClient ?? null;
         this.clerkInitPromise = null;
         this.clerkLoaded = false;
     }
@@ -33,15 +34,28 @@ class ArticleApiService {
         this.supportedSitesText = text ?? "";
     }
 
-    getSupabaseClient() {
-        if (this.supabaseClient != null) {
-            return this.supabaseClient;
+    getPublicSupabaseClient() {
+        if (this.publicSupabaseClient != null) {
+            return this.publicSupabaseClient;
         }
 
-        this.supabaseClient = this.createSupabaseClient(this.supabaseUrl, this.supabaseKey, {
+        this.publicSupabaseClient = this.createSupabaseClient(this.supabaseUrl, this.supabaseKey);
+        return this.publicSupabaseClient;
+    }
+
+    getAuthenticatedSupabaseClient() {
+        if (this.authenticatedSupabaseClient != null) {
+            return this.authenticatedSupabaseClient;
+        }
+
+        this.authenticatedSupabaseClient = this.createSupabaseClient(this.supabaseUrl, this.supabaseKey, {
             accessToken: async () => await this.getClerkSessionToken()
         });
-        return this.supabaseClient;
+        return this.authenticatedSupabaseClient;
+    }
+
+    getSupabaseClient() {
+        return this.getAuthenticatedSupabaseClient();
     }
 
     isClerkConfigured() {
@@ -464,7 +478,7 @@ class ArticleApiService {
         return walk(value);
     }
 
-    async getArticleQueueRowByUrl(targetUrl, supabase = this.getSupabaseClient()) {
+    async getArticleQueueRowByUrl(targetUrl, supabase = this.getPublicSupabaseClient()) {
         const normalizedTargetUrl = this.normalizeUserUrl(targetUrl);
 
         if (normalizedTargetUrl === null) {
@@ -486,7 +500,7 @@ class ArticleApiService {
             .maybeSingle();
     }
 
-    async getRecentArticleQueueRows({ limit = 100 } = {}, supabase = this.getSupabaseClient()) {
+    async getRecentArticleQueueRows({ limit = 100 } = {}, supabase = this.getPublicSupabaseClient()) {
         const safeLimit = Math.max(1, Math.min(100, Number(limit) || 100));
         const { data, error } = await supabase
             .from("article_queue")
@@ -504,7 +518,11 @@ class ArticleApiService {
         };
     }
 
-    async getOrEnqueueArticleQueueRow(targetUrl, supabase = this.getSupabaseClient()) {
+    async getOrEnqueueArticleQueueRow(
+        targetUrl,
+        supabase = this.getAuthenticatedSupabaseClient(),
+        publicSupabase = supabase === this.authenticatedSupabaseClient ? this.getPublicSupabaseClient() : supabase
+    ) {
         const normalizedTargetUrl = this.normalizeUserUrl(targetUrl);
 
         if (normalizedTargetUrl === null) {
@@ -519,7 +537,7 @@ class ArticleApiService {
             return { data: null, error };
         }
 
-        const { data: existingRow, error: readErr } = await supabase
+        const { data: existingRow, error: readErr } = await publicSupabase
             .from("article_queue")
             .select("*")
             .eq("url", urlKey)
@@ -626,7 +644,7 @@ class ArticleApiService {
             return { data: null, error: null };
         }
 
-        const finalQueueRead = await this.getArticleQueueRowByUrl(normalizedTargetUrl, supabase);
+        const finalQueueRead = await this.getArticleQueueRowByUrl(normalizedTargetUrl, publicSupabase);
         if (finalQueueRead.error == null && finalQueueRead.data != null) {
             return finalQueueRead;
         }
@@ -634,7 +652,7 @@ class ArticleApiService {
         return { data: fnData.queue ?? null, error: null };
     }
 
-    async fetchOwnershipTreeById(ownershipTreeId, supabase = this.getSupabaseClient()) {
+    async fetchOwnershipTreeById(ownershipTreeId, supabase = this.getPublicSupabaseClient()) {
         const ownershipTreeResult = await supabase
             .from("ownership_trees")
             .select("*")
@@ -690,7 +708,7 @@ class ArticleApiService {
         };
     }
 
-    async lookupCompanyPair(payload, supabase = this.getSupabaseClient()) {
+    async lookupCompanyPair(payload, supabase = this.getAuthenticatedSupabaseClient()) {
         const { data, error } = await supabase.functions.invoke("company-pair-lookup", {
             body: payload
         });
@@ -707,7 +725,7 @@ class ArticleApiService {
         };
     }
 
-    async startCompanyPairResearch(payload, supabase = this.getSupabaseClient()) {
+    async startCompanyPairResearch(payload, supabase = this.getAuthenticatedSupabaseClient()) {
         const { data, error } = await supabase.functions.invoke("company-pair-research-start", {
             body: {
                 ...payload,
@@ -721,7 +739,7 @@ class ArticleApiService {
         };
     }
 
-    async createCheckoutSession({ amountUsd } = {}, supabase = this.getSupabaseClient()) {
+    async createCheckoutSession({ amountUsd } = {}, supabase = this.getAuthenticatedSupabaseClient()) {
         const { data, error } = await supabase.functions.invoke("create-checkout-session", {
             body: {
                 amount_usd: amountUsd,
@@ -757,7 +775,7 @@ class ArticleApiService {
         };
     }
 
-    async getCreditBalance(supabase = this.getSupabaseClient()) {
+    async getCreditBalance(supabase = this.getAuthenticatedSupabaseClient()) {
         const { data: userData, error: userError } = await this.getCurrentUser();
         if (userError) {
             return { data: null, error: userError };
@@ -780,7 +798,7 @@ class ArticleApiService {
         };
     }
 
-    async syncCreditPurchase(stripeSessionId, supabase = this.getSupabaseClient()) {
+    async syncCreditPurchase(stripeSessionId, supabase = this.getAuthenticatedSupabaseClient()) {
         const { data, error } = await supabase.functions.invoke("credit-account", {
             body: {
                 action: "sync_purchase",
@@ -794,7 +812,7 @@ class ArticleApiService {
         };
     }
 
-    async isInvestigationCreditsEnabled(supabase = this.getSupabaseClient()) {
+    async isInvestigationCreditsEnabled(supabase = this.getPublicSupabaseClient()) {
         const { data, error } = await supabase
             .from("site_feature_flags")
             .select("enabled")
@@ -808,7 +826,7 @@ class ArticleApiService {
         return { data: data?.enabled === true, error: null };
     }
 
-    async getAccountPreferences(supabase = this.getSupabaseClient()) {
+    async getAccountPreferences(supabase = this.getAuthenticatedSupabaseClient()) {
         const { data: userData, error: userError } = await this.getCurrentUser();
         if (userError) {
             return { data: null, error: userError };
@@ -831,7 +849,7 @@ class ArticleApiService {
         };
     }
 
-    async updateAccountPreferences(options = {}, supabase = this.getSupabaseClient()) {
+    async updateAccountPreferences(options = {}, supabase = this.getAuthenticatedSupabaseClient()) {
         const { data: userData, error: userError } = await this.getCurrentUser();
         if (userError) {
             return { data: null, error: userError };
@@ -856,7 +874,7 @@ class ArticleApiService {
         };
     }
 
-    async deleteAccount(supabase = this.getSupabaseClient()) {
+    async deleteAccount(supabase = this.getAuthenticatedSupabaseClient()) {
         const { data, error } = await supabase.functions.invoke("delete-account", {
             body: {
                 ...this.getMockAuthBody()
@@ -869,7 +887,7 @@ class ArticleApiService {
         };
     }
 
-    async fundArticleInvestigation(queueId, supabase = this.getSupabaseClient()) {
+    async fundArticleInvestigation(queueId, supabase = this.getAuthenticatedSupabaseClient()) {
         const { data: userData, error: userError } = await this.getCurrentUser();
         if (userError) {
             return { data: null, error: userError };
@@ -893,7 +911,7 @@ class ArticleApiService {
         };
     }
 
-    async optOutArticleFunding(queueId, supabase = this.getSupabaseClient()) {
+    async optOutArticleFunding(queueId, supabase = this.getAuthenticatedSupabaseClient()) {
         const { data: userData, error: userError } = await this.getCurrentUser();
         if (userError) {
             return { data: null, error: userError };
@@ -917,7 +935,7 @@ class ArticleApiService {
         };
     }
 
-    async resumeArticleInvestigation(targetUrl, supabase = this.getSupabaseClient()) {
+    async resumeArticleInvestigation(targetUrl, supabase = this.getAuthenticatedSupabaseClient()) {
         const normalizedTargetUrl = this.normalizeUserUrl(targetUrl);
         if (normalizedTargetUrl === null) {
             return { data: null, error: new Error("Invalid URL") };
@@ -937,12 +955,16 @@ class ArticleApiService {
         };
     }
 
-    async getArticleByUrl(targetUrl, supabase = this.getSupabaseClient()) {
+    async getArticleByUrl(
+        targetUrl,
+        supabase = this.getAuthenticatedSupabaseClient(),
+        publicSupabase = supabase === this.authenticatedSupabaseClient ? this.getPublicSupabaseClient() : supabase
+    ) {
         this.logger?.log?.("[submit-flow] getArticleByUrl start", {
             targetUrl
         });
 
-        const articleResult = await this.getOrEnqueueArticleQueueRow(targetUrl, supabase);
+        const articleResult = await this.getOrEnqueueArticleQueueRow(targetUrl, supabase, publicSupabase);
 
         this.logger?.log?.("[submit-flow] getOrEnqueueArticleQueueRow result", {
             targetUrl,
@@ -966,7 +988,7 @@ class ArticleApiService {
         let ownershipTreeObj = null;
 
         if (ownership_tree_id != null) {
-            ownershipTreeObj = await this.fetchOwnershipTreeById(ownership_tree_id, supabase);
+            ownershipTreeObj = await this.fetchOwnershipTreeById(ownership_tree_id, publicSupabase);
         }
 
         return {
@@ -977,7 +999,7 @@ class ArticleApiService {
         };
     }
 
-    async collectEvidence(ids, supabase = this.getSupabaseClient()) {
+    async collectEvidence(ids, supabase = this.getAuthenticatedSupabaseClient()) {
         const requestedIds = Array.from(new Set(Array.isArray(ids) ? ids : Array.from(ids ?? [])));
 
         const { data, error } = await supabase.functions.invoke("get-evidence-batch", {

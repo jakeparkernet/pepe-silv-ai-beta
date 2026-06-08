@@ -318,10 +318,20 @@ class CreditSourceContractTests(unittest.TestCase):
         self.assertIn("const showSignedInAccountControls = isSignedIn;", app)
         self.assertIn("const showCreditControls = isSignedIn;", app)
         self.assertIn("this.accountLogoutButton.hidden = !showSignedInAccountControls;", app)
+        self.assertIn("this.refreshRecentLinksIfHomepageEligible();", app)
+        self.assertIn("refreshRecentLinksIfHomepageEligible()", app)
         self.assertNotIn("testerGateEnabled", app)
         self.assertNotIn("credits_10", app)
 
         for fragment in [
+            "getPublicSupabaseClient",
+            "getAuthenticatedSupabaseClient",
+            "this.publicSupabaseClient = this.createSupabaseClient(this.supabaseUrl, this.supabaseKey);",
+            "this.authenticatedSupabaseClient = this.createSupabaseClient(this.supabaseUrl, this.supabaseKey, {\n            accessToken:",
+            "async getRecentArticleQueueRows({ limit = 100 } = {}, supabase = this.getPublicSupabaseClient())",
+            "async isInvestigationCreditsEnabled(supabase = this.getPublicSupabaseClient())",
+            "async createCheckoutSession({ amountUsd } = {}, supabase = this.getAuthenticatedSupabaseClient())",
+            "async getCreditBalance(supabase = this.getAuthenticatedSupabaseClient())",
             "isInvestigationCreditsEnabled",
             "getAccountPreferences",
             "updateAccountPreferences",
