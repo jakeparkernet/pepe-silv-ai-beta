@@ -603,6 +603,7 @@ class App {
 
         this.creditTesterAuthorized = isTesterAuthorized;
         const showSignupButtons = testerGateEnabled && !isSignedIn;
+        const showSignedInAccountControls = isSignedIn;
         const showCreditControls = featureEnabled && isTesterAuthorized;
 
         if (this.authSignInLink != null) {
@@ -621,7 +622,7 @@ class App {
             this.accountLinkButton.hidden = !showCreditControls;
         }
         if (this.accountLogoutButton != null) {
-            this.accountLogoutButton.hidden = !showCreditControls;
+            this.accountLogoutButton.hidden = !showSignedInAccountControls;
         }
         if (this.clerkUserButton != null) {
             this.clerkUserButton.hidden = !showCreditControls;
