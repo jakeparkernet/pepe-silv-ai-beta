@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+OLD_TESTER_ENV = "PEPE_ALLOWED_" + "TESTER_EMAILS"
 
 
 def read_text(relative_path: str) -> str:
@@ -63,8 +64,7 @@ class CreditSourceContractTests(unittest.TestCase):
             '.from("site_feature_flags")',
             '.eq("key", "investigation_credits")',
             "if (investigationCreditsEnabled) {\n      authenticatedUser = await getAuthenticatedUser(req, body as Record<string, unknown>);",
-            'Deno.env.get("PEPE_ALLOWED_TESTER_EMAILS")',
-            'error: "under_construction"',
+            "verifyToken(token, verifyOptions)",
             "if (investigationCreditsEnabled && wasInserted && authenticatedUser == null)",
             'supabase.rpc("fund_article_investigation"',
             "p_is_starter: true",
@@ -79,6 +79,8 @@ class CreditSourceContractTests(unittest.TestCase):
         for fragment in required_fragments:
             with self.subTest(fragment=fragment):
                 self.assertIn(fragment, source)
+        self.assertNotIn(OLD_TESTER_ENV, source)
+        self.assertNotIn("@gmail.com", source)
 
     def test_company_pair_start_preserves_legacy_reservation_behind_flag(self) -> None:
         source = read_text("supabase/functions/company-pair-research-start/index.ts")
@@ -87,8 +89,7 @@ class CreditSourceContractTests(unittest.TestCase):
         required_fragments = [
             '.from("site_feature_flags")',
             '.eq("key", "investigation_credits")',
-            'Deno.env.get("PEPE_ALLOWED_TESTER_EMAILS")',
-            'error: "under_construction"',
+            "verifyToken(token, verifyOptions)",
             "if (investigationCreditsEnabled) {",
             'supabase.rpc("fund_company_pair_investigation"',
             'supabase.rpc("debit_company_pair_flat_start_cost"',
@@ -102,14 +103,17 @@ class CreditSourceContractTests(unittest.TestCase):
         for fragment in required_fragments:
             with self.subTest(fragment=fragment):
                 self.assertIn(fragment, source)
+        self.assertNotIn(OLD_TESTER_ENV, source)
+        self.assertNotIn("@gmail.com", source)
 
         for fragment in [
-            'Deno.env.get("PEPE_ALLOWED_TESTER_EMAILS")',
-            'error: "under_construction"',
-            "requiresAuth && user && !(await isAllowedTester(user))",
+            "verifyToken(token, verifyOptions)",
+            "requiresAuth && !user",
         ]:
             with self.subTest(fragment=fragment):
                 self.assertIn(fragment, lookup)
+        self.assertNotIn(OLD_TESTER_ENV, lookup)
+        self.assertNotIn("@gmail.com", lookup)
 
     def test_notice_sender_and_delete_account_have_expected_safety_contracts(self) -> None:
         checkout = read_text("supabase/functions/create-checkout-session/index.ts")
@@ -123,9 +127,7 @@ class CreditSourceContractTests(unittest.TestCase):
             '.eq("key", "investigation_credits")',
             "Credit purchases are not enabled",
             "parseBooleanSetting(featureFlag.data?.enabled, false)",
-            'Deno.env.get("PEPE_ALLOWED_TESTER_EMAILS")',
-            'error: "under_construction"',
-            "getClerkUserEmail(user.id)",
+            "verifyToken(token, verifyOptions)",
             'Deno.env.get("PEPE_AUTH_MODE")',
             'Deno.env.get("PEPE_PAYMENTS_MODE")',
             "cs_mock_",
@@ -136,8 +138,7 @@ class CreditSourceContractTests(unittest.TestCase):
 
         for fragment in [
             'Deno.env.get("PEPE_AUTH_MODE")',
-            'Deno.env.get("PEPE_ALLOWED_TESTER_EMAILS")',
-            'error: "under_construction"',
+            "verifyToken(token, verifyOptions)",
             "mock_user_id",
             'action === "get"',
             'action === "update_preferences"',
@@ -162,8 +163,6 @@ class CreditSourceContractTests(unittest.TestCase):
 
         for fragment in [
             "verifyToken(token, verifyOptions)",
-            'Deno.env.get("PEPE_ALLOWED_TESTER_EMAILS")',
-            'error: "under_construction"',
             'supabase.rpc("update_user_account_preferences"',
             'p_delete_account: true',
             '.from("article_investigation_funders")',
@@ -183,11 +182,21 @@ class CreditSourceContractTests(unittest.TestCase):
             with self.subTest(fragment=fragment):
                 self.assertIn(fragment, config)
 
+        for source_name, source in [
+            ("checkout", checkout),
+            ("credit_account", credit_account),
+            ("delete_account", delete_account),
+        ]:
+            with self.subTest(source=source_name):
+                self.assertNotIn(OLD_TESTER_ENV, source)
+                self.assertNotIn("@gmail.com", source)
+
     def test_frontend_exposes_account_funding_and_running_cost_controls(self) -> None:
         html = read_text("src/site/dev/index.html")
         app = read_text("src/site/dev/js/app.js")
         api_config = read_text("src/site/dev/js/services/articleApiConfig.js")
         runtime_config = read_text("src/site/dev/runtime-config.js")
+        build_script = read_text("scripts/build_cloudflare_pages.sh")
         service = read_text("src/site/dev/js/services/ArticleApiService.js")
         controller = read_text("src/site/dev/js/controllers/ArticleSubmissionController.js")
         states = read_text("src/site/dev/status_states.json")
@@ -208,11 +217,21 @@ class CreditSourceContractTests(unittest.TestCase):
             "window.PEPE_DEFAULT_BASE_URL",
             "window.PEPE_AUTH_MODE",
             "window.PEPE_PAYMENTS_MODE",
-            "window.PEPE_ALLOWED_TESTER_EMAILS",
         ]:
             with self.subTest(fragment=fragment):
                 self.assertIn(fragment, api_config)
                 self.assertIn(fragment, runtime_config)
+
+        for source_name, source in [
+            ("app", app),
+            ("api_config", api_config),
+            ("runtime_config", runtime_config),
+            ("build_script", build_script),
+            ("service", service),
+        ]:
+            with self.subTest(source=source_name):
+                self.assertNotIn(OLD_TESTER_ENV, source)
+                self.assertNotIn("@gmail.com", source)
 
         for fragment in [
             "isInvestigationCreditsEnabled",
@@ -232,6 +251,7 @@ class CreditSourceContractTests(unittest.TestCase):
                 self.assertIn(fragment, app)
 
         self.assertIn("const showSignupButtons = testerGateEnabled && !isSignedIn;", app)
+        self.assertIn("const isTesterAuthorized = featureEnabled && testerGateEnabled && isSignedIn;", app)
         self.assertIn("const showCreditControls = featureEnabled && isTesterAuthorized;", app)
 
         for fragment in [
@@ -243,7 +263,6 @@ class CreditSourceContractTests(unittest.TestCase):
             "optOutArticleFunding",
             "resumeArticleInvestigation",
             "isMockAuthMode",
-            "isAllowedTester",
             "getMockAuthBody",
             "credit-account",
         ]:

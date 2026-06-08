@@ -41,10 +41,6 @@ export const ARTICLE_API_CONFIG = Object.freeze({
     clerkFrontendApiUrl,
     authMode: nonEmptyString(window.PEPE_AUTH_MODE, "real"),
     paymentsMode: nonEmptyString(window.PEPE_PAYMENTS_MODE, "real"),
-    allowedTesterEmails: String(window.PEPE_ALLOWED_TESTER_EMAILS ?? "actorjakeparker@gmail.com")
-        .split(",")
-        .map((email) => email.trim().toLowerCase())
-        .filter((email) => email.length > 0),
     creditPackId: "credits_10",
     creditPackAmountUsd: 10,
     defaultBaseUrl: nonEmptyString(window.PEPE_DEFAULT_BASE_URL, "https://callback.pepesilv.ai"),

@@ -32,7 +32,6 @@ js_string() {
     printf 'window.PEPE_DEFAULT_BASE_URL = %s;\n' "$(js_string "${PEPE_DEFAULT_BASE_URL:-}")"
     printf 'window.PEPE_AUTH_MODE = %s;\n' "$(js_string "${PEPE_AUTH_MODE:-real}")"
     printf 'window.PEPE_PAYMENTS_MODE = %s;\n' "$(js_string "${PEPE_PAYMENTS_MODE:-real}")"
-    printf 'window.PEPE_ALLOWED_TESTER_EMAILS = %s;\n' "$(js_string "${PEPE_ALLOWED_TESTER_EMAILS:-actorjakeparker@gmail.com}")"
     printf 'window.PEPE_CLERK_PUBLISHABLE_KEY = %s;\n' "$(js_string "$clerk_publishable_key")"
     printf 'window.PEPE_CLERK_FRONTEND_API_URL = %s;\n' "$(js_string "$clerk_frontend_api_url")"
     printf 'window.PEPE_BUILD_COMMIT_HASH = %s;\n' "$(js_string "$commit_hash")"

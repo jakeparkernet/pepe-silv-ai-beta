@@ -181,52 +181,12 @@ function isMockAuthEnabled(): boolean {
   return (Deno.env.get("PEPE_AUTH_MODE") ?? "").trim().toLowerCase() === "mock";
 }
 
-function getAllowedTesterEmails(): string[] {
-  return (Deno.env.get("PEPE_ALLOWED_TESTER_EMAILS") ?? "actorjakeparker@gmail.com")
-    .split(",")
-    .map((email) => email.trim().toLowerCase())
-    .filter(Boolean);
-}
-
 function getClaimEmail(claims: Record<string, unknown>): string | null {
   return typeof claims.email === "string"
     ? claims.email
     : typeof claims.email_address === "string"
       ? claims.email_address
       : null;
-}
-
-async function getClerkUserEmail(userId: string): Promise<string | null> {
-  const clerkSecretKey = Deno.env.get("CLERK_SECRET_KEY") ?? "";
-  if (!clerkSecretKey) return null;
-
-  const res = await fetch(`https://api.clerk.com/v1/users/${encodeURIComponent(userId)}`, {
-    headers: {
-      "Authorization": `Bearer ${clerkSecretKey}`,
-      "Content-Type": "application/json",
-    },
-  });
-  if (!res.ok) return null;
-
-  const data = await res.json().catch(() => null) as Record<string, unknown> | null;
-  const primaryEmailId = typeof data?.primary_email_address_id === "string" ? data.primary_email_address_id : "";
-  const emailAddresses = Array.isArray(data?.email_addresses) ? data.email_addresses : [];
-  for (const rawEmail of emailAddresses) {
-    if (rawEmail === null || typeof rawEmail !== "object") continue;
-    const email = rawEmail as Record<string, unknown>;
-    const id = typeof email.id === "string" ? email.id : "";
-    const address = typeof email.email_address === "string" ? email.email_address : "";
-    if (address && (primaryEmailId === "" || id === primaryEmailId)) return address;
-  }
-  return null;
-}
-
-async function isAllowedTester(user: ClerkUser): Promise<boolean> {
-  if (isMockAuthEnabled()) return true;
-  const allowedEmails = getAllowedTesterEmails();
-  if (allowedEmails.length === 0) return false;
-  const email = (user.email ?? await getClerkUserEmail(user.id) ?? "").trim().toLowerCase();
-  return email.length > 0 && allowedEmails.includes(email);
 }
 
 async function getAuthenticatedUser(req: Request, body: Record<string, unknown> = {}): Promise<ClerkUser | null> {
@@ -2370,13 +2330,6 @@ serve(async (req: Request) => {
     let authenticatedUser: ClerkUser | null = null;
     if (investigationCreditsEnabled) {
       authenticatedUser = await getAuthenticatedUser(req, body as Record<string, unknown>);
-      if (authenticatedUser != null && !(await isAllowedTester(authenticatedUser))) {
-        return respond(403, {
-          error: "under_construction",
-          request_id: requestId,
-          feature_flag: "investigation_credits",
-        });
-      }
     }
 
     logInfo(requestId, "db.site_lookup.start", {

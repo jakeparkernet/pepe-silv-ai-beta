@@ -598,16 +598,8 @@ class App {
         }
         let isSignedIn = user != null;
         const featureEnabled = this.investigationCreditsEnabled === true;
-        let testerGateEnabled = this.testerAccessEnabled === true;
-        let isTesterAuthorized = featureEnabled && testerGateEnabled && isSignedIn && this.apiService.isAllowedTester(user);
-
-        if (featureEnabled && testerGateEnabled && isSignedIn && !isTesterAuthorized) {
-            await this.handleUnauthorizedTester();
-            user = null;
-            isSignedIn = false;
-            testerGateEnabled = false;
-            isTesterAuthorized = false;
-        }
+        const testerGateEnabled = this.testerAccessEnabled === true;
+        const isTesterAuthorized = featureEnabled && testerGateEnabled && isSignedIn;
 
         this.creditTesterAuthorized = isTesterAuthorized;
         const showSignupButtons = testerGateEnabled && !isSignedIn;

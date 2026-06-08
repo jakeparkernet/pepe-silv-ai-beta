@@ -47,52 +47,12 @@ type ClerkUser = {
   email: string | null;
 };
 
-function getAllowedTesterEmails() {
-  return (Deno.env.get("PEPE_ALLOWED_TESTER_EMAILS") ?? "actorjakeparker@gmail.com")
-    .split(",")
-    .map((email) => email.trim().toLowerCase())
-    .filter(Boolean);
-}
-
 function getClaimEmail(claims: Record<string, unknown>) {
   return typeof claims.email === "string"
     ? claims.email
     : typeof claims.email_address === "string"
       ? claims.email_address
       : null;
-}
-
-async function getClerkUserEmail(userId: string) {
-  const clerkSecretKey = Deno.env.get("CLERK_SECRET_KEY") ?? "";
-  if (!clerkSecretKey) return null;
-
-  const res = await fetch(`https://api.clerk.com/v1/users/${encodeURIComponent(userId)}`, {
-    headers: {
-      "Authorization": `Bearer ${clerkSecretKey}`,
-      "Content-Type": "application/json",
-    },
-  });
-  if (!res.ok) return null;
-
-  const data = await res.json().catch(() => null) as Record<string, unknown> | null;
-  const primaryEmailId = typeof data?.primary_email_address_id === "string" ? data.primary_email_address_id : "";
-  const emailAddresses = Array.isArray(data?.email_addresses) ? data.email_addresses : [];
-  for (const rawEmail of emailAddresses) {
-    if (rawEmail === null || typeof rawEmail !== "object") continue;
-    const email = rawEmail as Record<string, unknown>;
-    const id = typeof email.id === "string" ? email.id : "";
-    const address = typeof email.email_address === "string" ? email.email_address : "";
-    if (address && (primaryEmailId === "" || id === primaryEmailId)) return address;
-  }
-  return null;
-}
-
-async function isAllowedTester(user: ClerkUser) {
-  if (isMockAuthEnabled()) return true;
-  const allowedEmails = getAllowedTesterEmails();
-  if (allowedEmails.length === 0) return false;
-  const email = (user.email ?? await getClerkUserEmail(user.id) ?? "").trim().toLowerCase();
-  return email.length > 0 && allowedEmails.includes(email);
 }
 
 async function getAuthenticatedUser(req: Request, body: Record<string, unknown>): Promise<ClerkUser | null> {
@@ -152,9 +112,6 @@ serve(async (req) => {
     const user = await getAuthenticatedUser(req, body);
     if (!user) {
       return respond(origin, 401, { ok: false, error: "Sign in required" });
-    }
-    if (!(await isAllowedTester(user))) {
-      return respond(origin, 403, { ok: false, error: "under_construction" });
     }
 
     const action = typeof body.action === "string" ? body.action : "get";

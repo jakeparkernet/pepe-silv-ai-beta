@@ -16,7 +16,6 @@ class ArticleApiService {
         this.clerkFrontendApiUrl = options.clerkFrontendApiUrl ?? ARTICLE_API_CONFIG.clerkFrontendApiUrl;
         this.authMode = options.authMode ?? ARTICLE_API_CONFIG.authMode ?? "real";
         this.paymentsMode = options.paymentsMode ?? ARTICLE_API_CONFIG.paymentsMode ?? "real";
-        this.allowedTesterEmails = options.allowedTesterEmails ?? ARTICLE_API_CONFIG.allowedTesterEmails ?? ["actorjakeparker@gmail.com"];
         this.creditPackId = options.creditPackId ?? ARTICLE_API_CONFIG.creditPackId ?? "credits_10";
         this.fetchImpl = options.fetchImpl ?? fetch;
         this.logger = options.logger ?? console;
@@ -58,25 +57,6 @@ class ArticleApiService {
 
     isMockAuthMode() {
         return String(this.authMode ?? "").trim().toLowerCase() === "mock";
-    }
-
-    normalizeEmail(email) {
-        return String(email ?? "").trim().toLowerCase();
-    }
-
-    isAllowedTester(user) {
-        if (this.isMockAuthMode()) {
-            return true;
-        }
-
-        const userEmail = this.normalizeEmail(user?.email ?? "");
-        if (userEmail.length === 0) {
-            return false;
-        }
-
-        return this.allowedTesterEmails
-            .map((email) => this.normalizeEmail(email))
-            .includes(userEmail);
     }
 
     getMockUser() {

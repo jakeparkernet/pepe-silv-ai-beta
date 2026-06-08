@@ -19,7 +19,6 @@ STRIPE_SECRET_KEY=<stripe test secret key>
 STRIPE_WEBHOOK_SECRET=<stripe cli webhook secret>
 PEPE_AUTH_MODE=real
 PEPE_PAYMENTS_MODE=real
-PEPE_ALLOWED_TESTER_EMAILS=actorjakeparker@gmail.com
 SITE_URL=http://127.0.0.1:3000
 PUBLIC_SITE_URL=http://127.0.0.1:3000
 ALLOWED_ORIGINS=http://127.0.0.1:3000,http://localhost:3000
@@ -37,6 +36,10 @@ RLS testing with Clerk JWTs, enable `[auth.third_party.clerk]` in
 `supabase/config.toml` and set the Clerk domain from the Clerk Supabase setup
 page before `supabase start`.
 
+Configure tester access in the Clerk Dashboard under Restrictions/Allowlist.
+The tester email should not be stored in browser runtime config or committed
+docs/code.
+
 ## Browser Runtime Config
 
 For local testing, set `src/site/dev/runtime-config.js` to point at the local
@@ -48,7 +51,6 @@ window.PEPE_SUPABASE_PUBLISHABLE_KEY = "<local anon key from supabase start>";
 window.PEPE_DEFAULT_BASE_URL = "http://127.0.0.1:55421/functions/v1";
 window.PEPE_CLERK_PUBLISHABLE_KEY = "<clerk publishable key>";
 window.PEPE_CLERK_FRONTEND_API_URL = ""; // optional; derived from the publishable key
-window.PEPE_ALLOWED_TESTER_EMAILS = "actorjakeparker@gmail.com";
 window.PEPE_BUILD_COMMIT_HASH = "";
 window.PEPE_COMPANY_PAIR_URL_INPUT_ENABLED = false;
 ```
@@ -75,7 +77,6 @@ Then set the browser runtime config to:
 ```js
 window.PEPE_AUTH_MODE = "mock";
 window.PEPE_PAYMENTS_MODE = "mock";
-window.PEPE_ALLOWED_TESTER_EMAILS = "actorjakeparker@gmail.com";
 ```
 
 In this mode, the static page stores a local mock user id in `localStorage`, the
