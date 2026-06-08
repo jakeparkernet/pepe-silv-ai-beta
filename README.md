@@ -324,7 +324,7 @@ The repo uses a fairly large environment surface. The list below focuses on vari
 The static site reads these browser globals before `js/app.js` loads. For Cloudflare Pages, the build script writes them from same-named build environment variables:
 
 - `window.PEPE_CLERK_PUBLISHABLE_KEY`
-- `window.PEPE_CLERK_FRONTEND_API_URL`
+- `window.PEPE_CLERK_FRONTEND_API_URL`: optional; derived from the Clerk publishable key when omitted.
 - `window.PEPE_SUPABASE_URL`: optional public Supabase URL override, useful for local Supabase testing.
 - `window.PEPE_SUPABASE_PUBLISHABLE_KEY`: optional public anon/publishable key override.
 - `window.PEPE_DEFAULT_BASE_URL`: optional Edge Function base URL override.

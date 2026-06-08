@@ -15,6 +15,9 @@ if [[ -n "${CF_PAGES_COMMIT_SHA:-}" && ${#CF_PAGES_COMMIT_SHA} -ge 7 ]]; then
     commit_hash="${CF_PAGES_COMMIT_SHA:0:7}"
 fi
 
+clerk_publishable_key="${PEPE_CLERK_PUBLISHABLE_KEY:-${CLERK_PUBLISHABLE_KEY:-${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:-}}}"
+clerk_frontend_api_url="${PEPE_CLERK_FRONTEND_API_URL:-${CLERK_FRONTEND_API_URL:-}}"
+
 js_string() {
     local value="${1:-}"
     value="${value//\\/\\\\}"
@@ -30,8 +33,8 @@ js_string() {
     printf 'window.PEPE_AUTH_MODE = %s;\n' "$(js_string "${PEPE_AUTH_MODE:-real}")"
     printf 'window.PEPE_PAYMENTS_MODE = %s;\n' "$(js_string "${PEPE_PAYMENTS_MODE:-real}")"
     printf 'window.PEPE_ALLOWED_TESTER_EMAILS = %s;\n' "$(js_string "${PEPE_ALLOWED_TESTER_EMAILS:-actorjakeparker@gmail.com}")"
-    printf 'window.PEPE_CLERK_PUBLISHABLE_KEY = %s;\n' "$(js_string "${PEPE_CLERK_PUBLISHABLE_KEY:-}")"
-    printf 'window.PEPE_CLERK_FRONTEND_API_URL = %s;\n' "$(js_string "${PEPE_CLERK_FRONTEND_API_URL:-}")"
+    printf 'window.PEPE_CLERK_PUBLISHABLE_KEY = %s;\n' "$(js_string "$clerk_publishable_key")"
+    printf 'window.PEPE_CLERK_FRONTEND_API_URL = %s;\n' "$(js_string "$clerk_frontend_api_url")"
     printf 'window.PEPE_BUILD_COMMIT_HASH = %s;\n' "$(js_string "$commit_hash")"
     printf 'window.PEPE_COMPANY_PAIR_URL_INPUT_ENABLED = %s;\n' "$(js_string "${PEPE_COMPANY_PAIR_URL_INPUT_ENABLED:-false}")"
 } > "$output_dir/runtime-config.js"

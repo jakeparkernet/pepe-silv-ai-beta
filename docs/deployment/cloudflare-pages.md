@@ -153,7 +153,7 @@ Keep the existing production values for:
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
 
-Cloudflare Pages needs `PEPE_CLERK_PUBLISHABLE_KEY`, `PEPE_CLERK_FRONTEND_API_URL`, and `PEPE_ALLOWED_TESTER_EMAILS` set as build environment variables so `runtime-config.js` is generated with the public Clerk browser configuration and tester-only UI allowlist. Account and funding actions are verified in Edge Functions with Clerk keys and then executed with the Supabase service role, so Supabase Auth does not need Clerk third-party auth for the browser app flow. `PEPE_SUPABASE_URL`, `PEPE_SUPABASE_PUBLISHABLE_KEY`, and `PEPE_DEFAULT_BASE_URL` are optional public overrides for local or staging builds.
+Cloudflare Pages needs `PEPE_CLERK_PUBLISHABLE_KEY` and `PEPE_ALLOWED_TESTER_EMAILS` set as build environment variables so `runtime-config.js` is generated with the public Clerk browser configuration and tester-only UI allowlist. The build also accepts `CLERK_PUBLISHABLE_KEY` or `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` as fallbacks, and the frontend derives the Clerk frontend URL from the publishable key when `PEPE_CLERK_FRONTEND_API_URL` is omitted. Account and funding actions are verified in Edge Functions with Clerk keys and then executed with the Supabase service role, so Supabase Auth does not need Clerk third-party auth for the browser app flow. `PEPE_SUPABASE_URL`, `PEPE_SUPABASE_PUBLISHABLE_KEY`, and `PEPE_DEFAULT_BASE_URL` are optional public overrides for local or staging builds.
 
 Stripe webhook endpoint:
 
