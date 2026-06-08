@@ -333,7 +333,7 @@ The static site reads these browser globals before `js/app.js` loads. For Cloudf
 - `window.PEPE_COMPANY_PAIR_URL_INPUT_ENABLED`: enables the URL-field company-pair shortcut when set to `true`, `1`, `yes`, or `on`; defaults to disabled.
 
 The browser account and funding actions go through Edge Functions that verify Clerk tokens and then call Supabase with the service role. Supabase third-party Auth for Clerk is only needed if you intentionally want to test direct RLS access with Clerk JWTs.
-When `investigation_credits` is enabled, the public page still hides the credit UI unless opened with `?tester=true` or the temporary `?signup=true` alias. Tester sign-up and sign-in access is controlled in Clerk Restrictions/Allowlist, not in browser-visible configuration.
+Signed-in users see their credit balance and `Buy credits` in the top-right account area. The checkout flow accepts whole-dollar amounts of `$1` or more, and credits are granted 1:1 with USD after Stripe webhook settlement.
 See `docs/credit-local-testing.md` for the local Clerk, Stripe, Supabase, and feature-flag test path.
 
 ### Company Pair Credits Settings

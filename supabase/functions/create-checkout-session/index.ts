@@ -31,14 +31,6 @@ function respond(origin: string | null, status: number, body: Record<string, unk
   });
 }
 
-const CREDIT_PACKS: Record<string, { amountUsd: number; creditsUsd: number; name: string }> = {
-  credits_10: {
-    amountUsd: 10,
-    creditsUsd: 10,
-    name: "Pepe Silv.AI research credits",
-  },
-};
-
 type ClerkUser = {
   id: string;
   email: string | null;
@@ -59,23 +51,16 @@ function getClaimEmail(claims: Record<string, unknown>) {
       : null;
 }
 
-function getPack(raw: unknown) {
-  const packId = typeof raw === "string" && raw.trim() ? raw.trim() : "credits_10";
-  return {
-    packId,
-    pack: CREDIT_PACKS[packId] ?? null,
-  };
-}
-
-function parseBooleanSetting(value: unknown, fallback = false) {
-  if (typeof value === "boolean") return value;
-  if (typeof value === "number") return value !== 0;
-  if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase();
-    if (["true", "1", "yes", "on"].includes(normalized)) return true;
-    if (["false", "0", "no", "off"].includes(normalized)) return false;
+function getCheckoutAmountUsd(raw: unknown) {
+  const amount = typeof raw === "number"
+    ? raw
+    : typeof raw === "string" && raw.trim()
+      ? Number(raw.trim())
+      : Number.NaN;
+  if (!Number.isInteger(amount) || amount < 1) {
+    return null;
   }
-  return fallback;
+  return amount;
 }
 
 function isMockAuthEnabled() {
@@ -148,26 +133,13 @@ serve(async (req) => {
       return respond(origin, 401, { ok: false, error: "Sign in required" });
     }
 
-    const supabase = createClient(supabaseUrl, serviceRole, { auth: { persistSession: false } });
-    const featureFlag = await supabase
-      .from("site_feature_flags")
-      .select("enabled")
-      .eq("key", "investigation_credits")
-      .maybeSingle();
-    if (featureFlag.error) {
-      return respond(origin, 500, { ok: false, error: featureFlag.error.message });
+    const amountUsd = getCheckoutAmountUsd(body.amount_usd);
+    if (amountUsd == null) {
+      return respond(origin, 400, { ok: false, error: "Enter a whole dollar amount of at least $1" });
     }
-    if (!parseBooleanSetting(featureFlag.data?.enabled, false)) {
-      return respond(origin, 403, { ok: false, error: "Credit purchases are not enabled" });
-    }
-
-    const { packId, pack } = getPack(body.pack_id);
-    if (!pack) {
-      return respond(origin, 400, { ok: false, error: "Unknown credit pack" });
-    }
-    const amountUsd = pack.amountUsd;
-    const creditsUsd = pack.creditsUsd;
+    const creditsUsd = amountUsd;
     const cents = Math.round(amountUsd * 100);
+    const supabase = createClient(supabaseUrl, serviceRole, { auth: { persistSession: false } });
     if (isMockPaymentsEnabled()) {
       const mockSessionId = `cs_mock_${crypto.randomUUID()}`;
       await supabase.from("credit_accounts").upsert({
@@ -182,7 +154,7 @@ serve(async (req) => {
         status: "paid",
         metadata: {
           checkout_url: `${siteUrl}/?credits=success&mock_session_id=${encodeURIComponent(mockSessionId)}`,
-          pack_id: packId,
+          amount_usd: amountUsd,
           mock: true,
         },
       });
@@ -192,7 +164,7 @@ serve(async (req) => {
         entry_type: "purchase",
         stripe_session_id: mockSessionId,
         metadata: {
-          pack_id: packId,
+          amount_usd: amountUsd,
           mock: true,
         },
       });
@@ -216,10 +188,10 @@ serve(async (req) => {
     form.set("line_items[0][quantity]", "1");
     form.set("line_items[0][price_data][currency]", "usd");
     form.set("line_items[0][price_data][unit_amount]", String(cents));
-    form.set("line_items[0][price_data][product_data][name]", pack.name);
+    form.set("line_items[0][price_data][product_data][name]", "Pepe Silv.AI research credits");
     form.set("metadata[clerk_user_id]", user.id);
     form.set("metadata[user_id]", user.id);
-    form.set("metadata[pack_id]", packId);
+    form.set("metadata[amount_usd]", amountUsd.toFixed(2));
     form.set("metadata[credits_usd]", creditsUsd.toFixed(2));
 
     const stripeRes = await fetch("https://api.stripe.com/v1/checkout/sessions", {
@@ -247,7 +219,7 @@ serve(async (req) => {
       status: "created",
       metadata: {
         checkout_url: stripeJson.url,
-        pack_id: packId,
+        amount_usd: amountUsd,
       },
     });
 

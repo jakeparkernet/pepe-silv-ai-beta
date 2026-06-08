@@ -46,7 +46,7 @@
         <span id="auth-links-separator" aria-hidden="true" hidden>/</span>
         <button id="auth-sign-up-link" type="button" hidden>Sign up</button>
         <span id="auth-credit-balance" hidden></span>
-        <button id="auth-buy-credits-button" type="button" hidden>Buy $10 credits</button>
+        <button id="auth-buy-credits-button" type="button" hidden>Buy credits</button>
         <button id="account-link-button" type="button" hidden>Account</button>
         <button id="account-logout-button" type="button" hidden>Log out</button>
         <button id="fund-investigation-button" type="button" hidden>Fund investigation</button>
@@ -58,6 +58,20 @@
             <button id="account-delete-button" type="button">Delete account</button>
         </div>
     </nav>
+    <div id="buy-credits-modal" class="credit-modal" hidden role="dialog" aria-modal="true" aria-labelledby="buy-credits-title">
+        <form id="buy-credits-form" class="credit-modal-panel">
+            <label id="buy-credits-title" for="buy-credits-amount">Buy credits</label>
+            <div class="credit-modal-input-row">
+                <span aria-hidden="true">$</span>
+                <input id="buy-credits-amount" type="number" min="1" step="1" inputmode="numeric" autocomplete="off" placeholder="25">
+            </div>
+            <div id="buy-credits-error" class="credit-modal-error" hidden aria-live="polite"></div>
+            <div class="credit-modal-actions">
+                <button id="buy-credits-cancel-button" type="button">Cancel</button>
+                <button id="buy-credits-submit-button" type="submit">Continue</button>
+            </div>
+        </form>
+    </div>
     <div id="page-background">
         <div class="page-background-plane">
             <div class="page-background-layer page-background-layer-sharp"></div>

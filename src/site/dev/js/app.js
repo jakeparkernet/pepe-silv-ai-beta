@@ -177,6 +177,11 @@ class App {
         this.fundInvestigationButton = document.getElementById("fund-investigation-button");
         this.optOutFundingButton = document.getElementById("opt-out-funding-button");
         this.authStatusMessage = document.getElementById("auth-status-message");
+        this.buyCreditsModal = document.getElementById("buy-credits-modal");
+        this.buyCreditsForm = document.getElementById("buy-credits-form");
+        this.buyCreditsAmountInput = document.getElementById("buy-credits-amount");
+        this.buyCreditsError = document.getElementById("buy-credits-error");
+        this.buyCreditsCancelButton = document.getElementById("buy-credits-cancel-button");
         this.clerkUserButton = document.getElementById("clerk-user-button");
         this.accountPanel = document.getElementById("account-panel");
         this.accountToggleNotificationsButton = document.getElementById("account-toggle-notifications-button");
@@ -184,11 +189,11 @@ class App {
         this.runningCostDisplay = document.getElementById("running-cost-display");
         this.clerkUserButtonMounted = false;
         this.authListenerUnsubscribe = null;
-        this.testerAccessEnabled = this.isTesterAccessUrl();
         this.accountPreferences = null;
         this.currentPendingArticleObject = null;
         this.investigationCreditsEnabled = false;
         this.creditTesterAuthorized = false;
+        this.buyCreditsModalResolver = null;
 
         this.loaderState = {
             retrieval: false,
@@ -308,6 +313,7 @@ class App {
                 lookupCompanyPair: (payload) => this.apiService.lookupCompanyPair(payload),
                 startCompanyPairResearch: (payload) => this.apiService.startCompanyPairResearch(payload),
                 createCheckoutSession: (payload) => this.apiService.createCheckoutSession(payload),
+                buyCredits: () => this.buyCredits(),
                 getCurrentUser: () => this.apiService.getCurrentUser(),
                 openSignIn: () => this.openAuthModal("signin")
             },
@@ -380,6 +386,17 @@ class App {
         this.authBuyCreditsButton?.addEventListener("click", () => {
             void this.buyCredits();
         });
+        this.buyCreditsForm?.addEventListener("submit", (event) => {
+            this.handleBuyCreditsFormSubmit(event);
+        });
+        this.buyCreditsCancelButton?.addEventListener("click", () => {
+            this.closeBuyCreditsModal(null);
+        });
+        this.buyCreditsModal?.addEventListener("click", (event) => {
+            if (event.target === this.buyCreditsModal) {
+                this.closeBuyCreditsModal(null);
+            }
+        });
         this.accountLinkButton?.addEventListener("click", () => {
             void this.toggleAccountPanel();
         });
@@ -402,10 +419,6 @@ class App {
         try {
             const flagResult = await this.apiService.isInvestigationCreditsEnabled();
             this.investigationCreditsEnabled = flagResult.data === true;
-            if (!this.testerAccessEnabled) {
-                await this.updateAuthLinks();
-                return;
-            }
             await this.apiService.initializeClerk();
             this.authListenerUnsubscribe = await this.apiService.addAuthListener(() => {
                 void this.updateAuthLinks();
@@ -427,27 +440,61 @@ class App {
         this.authStatusMessage.hidden = message.length === 0;
     }
 
-    isTesterAccessUrl() {
-        const params = new URL(this.windowRef.location.href).searchParams;
-        return params.get("tester") === "true" || params.get("signup") === "true";
+    setBuyCreditsError(message = "") {
+        if (this.buyCreditsError == null) {
+            return;
+        }
+
+        this.buyCreditsError.textContent = message;
+        this.buyCreditsError.hidden = message.length === 0;
     }
 
-    returnUnauthorizedUserHome() {
-        this.creditTesterAuthorized = false;
-        this.testerAccessEnabled = false;
-        this.resetHomepageStateIfNeeded();
-
-        const url = new URL(this.windowRef.location.href);
-        url.searchParams.delete("tester");
-        url.searchParams.delete("signup");
-        url.searchParams.delete("url");
-        this.windowRef.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+    getBuyCreditsAmountFromInput() {
+        const raw = String(this.buyCreditsAmountInput?.value ?? "").trim();
+        const amount = Number(raw);
+        if (!Number.isInteger(amount) || amount < 1) {
+            return null;
+        }
+        return amount;
     }
 
-    async handleUnauthorizedTester() {
-        await this.apiService.signOut();
-        this.returnUnauthorizedUserHome();
-        this.setAuthStatusMessage("Under construction.");
+    openBuyCreditsModal() {
+        if (this.buyCreditsModal == null || this.buyCreditsAmountInput == null) {
+            return Promise.resolve(null);
+        }
+
+        this.setBuyCreditsError("");
+        this.buyCreditsAmountInput.value = "";
+        this.buyCreditsModal.hidden = false;
+        this.windowRef.setTimeout(() => {
+            this.buyCreditsAmountInput?.focus?.();
+        }, 0);
+
+        return new Promise((resolve) => {
+            this.buyCreditsModalResolver = resolve;
+        });
+    }
+
+    closeBuyCreditsModal(amountUsd) {
+        if (this.buyCreditsModal != null) {
+            this.buyCreditsModal.hidden = true;
+        }
+
+        if (this.buyCreditsModalResolver != null) {
+            this.buyCreditsModalResolver(amountUsd);
+            this.buyCreditsModalResolver = null;
+        }
+    }
+
+    handleBuyCreditsFormSubmit(event) {
+        event?.preventDefault?.();
+        const amountUsd = this.getBuyCreditsAmountFromInput();
+        if (amountUsd == null) {
+            this.setBuyCreditsError("Enter a whole dollar amount of at least $1.");
+            return;
+        }
+
+        this.closeBuyCreditsModal(amountUsd);
     }
 
     resetSignedOutAccountUi() {
@@ -598,13 +645,12 @@ class App {
         }
         let isSignedIn = user != null;
         const featureEnabled = this.investigationCreditsEnabled === true;
-        const testerGateEnabled = this.testerAccessEnabled === true;
-        const isTesterAuthorized = featureEnabled && testerGateEnabled && isSignedIn;
+        const isTesterAuthorized = featureEnabled && isSignedIn;
 
         this.creditTesterAuthorized = isTesterAuthorized;
-        const showSignupButtons = testerGateEnabled && !isSignedIn;
+        const showSignupButtons = !isSignedIn;
         const showSignedInAccountControls = isSignedIn;
-        const showCreditControls = featureEnabled && isTesterAuthorized;
+        const showCreditControls = isSignedIn;
 
         if (this.authSignInLink != null) {
             this.authSignInLink.hidden = !showSignupButtons;
@@ -632,27 +678,36 @@ class App {
         }
 
         await this.updateCreditBalance(showCreditControls ? user : null);
-        await this.updateAccountPreferences(showCreditControls ? user : null);
-        this.updateFundingControls(showCreditControls ? user : null);
+        await this.updateAccountPreferences(showSignedInAccountControls ? user : null);
+        this.updateFundingControls(isTesterAuthorized ? user : null);
         this.updateRunningCostDisplay();
     }
 
-    async buyCredits({ packId = this.apiService.creditPackId } = {}) {
+    async buyCredits({ amountUsd = null } = {}) {
         this.setAuthStatusMessage("");
-        if (!this.creditTesterAuthorized) {
+        const { data: userData } = await this.apiService.getCurrentUser();
+        if (userData?.user == null) {
             await this.openAuthModal("signin");
             return false;
         }
-        const { data, error } = await this.apiService.createCheckoutSession({ packId });
+
+        let checkoutAmountUsd = amountUsd;
+        if (checkoutAmountUsd == null) {
+            checkoutAmountUsd = await this.openBuyCreditsModal();
+        }
+        if (checkoutAmountUsd == null) {
+            return false;
+        }
+
+        const { data, error } = await this.apiService.createCheckoutSession({
+            amountUsd: checkoutAmountUsd
+        });
         if (error || !data?.checkout_url) {
             const status = error?.context?.status ?? data?.status ?? null;
             const message = error?.message ?? data?.error ?? "Could not start checkout.";
-            this.setAuthStatusMessage(message === "under_construction" ? "Under construction." : message);
+            this.setAuthStatusMessage(message);
             if (status === 401) {
                 await this.openAuthModal("signin");
-            }
-            if (status === 403 || message === "under_construction") {
-                await this.handleUnauthorizedTester();
             }
             return false;
         }

@@ -383,6 +383,74 @@ html.has-build-commit-hash #auth-links {
     text-decoration: none;
 }
 
+#buy-credits-modal[hidden] {
+    display: none;
+}
+
+.credit-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 2400;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-end;
+    padding: calc(env(safe-area-inset-top, 0px) + 48px) calc(env(safe-area-inset-right, 0px) + 14px) 18px 14px;
+    background: rgba(0, 0, 0, 0.18);
+}
+
+.credit-modal-panel {
+    display: flex;
+    width: min(260px, calc(100vw - 28px));
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid rgba(247, 227, 179, 0.34);
+    background: rgba(18, 12, 8, 0.94);
+    color: rgba(247, 239, 223, 0.92);
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 13px;
+}
+
+.credit-modal-input-row {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 6px;
+}
+
+#buy-credits-amount {
+    min-width: 0;
+    padding: 7px 8px;
+    border: 1px solid rgba(247, 227, 179, 0.32);
+    background: rgba(255, 249, 235, 0.96);
+    color: #20150d;
+    font: inherit;
+}
+
+.credit-modal-error {
+    color: #ffce9d;
+    font-size: 12px;
+}
+
+.credit-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.credit-modal-actions button {
+    border: 1px solid rgba(247, 227, 179, 0.34);
+    padding: 6px 9px;
+    color: inherit;
+    background: transparent;
+    font: inherit;
+    cursor: pointer;
+}
+
+.credit-modal-actions #buy-credits-submit-button {
+    background: rgba(247, 227, 179, 0.18);
+}
+
 #clerk-user-button {
     display: inline-flex;
     align-items: center;

@@ -125,11 +125,13 @@ supabase secrets set PEPE_PAYMENTS_MODE="real"
 supabase secrets set FUNDING_NOTICE_FROM_EMAIL="Pepe Silv.AI <notifications@pepesilv.ai>"
 ```
 
-For tester-only live checkout, keep `PEPE_PAYMENTS_MODE="real"` and set
-`STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` to Stripe test-mode values. The
-browser credit UI stays hidden from normal visitors unless the page is opened
-with `?tester=true`; tester sign-up and sign-in access is controlled by Clerk
-Restrictions/Allowlist.
+For test-mode checkout, keep `PEPE_PAYMENTS_MODE="real"` and set
+`STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` to Stripe test-mode values.
+Signed-in users can choose a whole-dollar amount from `Buy credits`; credits are
+1:1 with USD after `stripe-webhook` receives `checkout.session.completed`.
+The sibling `/home/jake/repos/stripe` project is only a test-mode reference for
+local Stripe setup. Pepe purchases should use Pepe's `create-checkout-session`
+and `stripe-webhook` functions so balances update in Pepe's `credit_ledger`.
 
 Keep the existing production values for:
 
@@ -169,5 +171,5 @@ After DNS and deploy:
 2. Submit a supported article URL and confirm `get-or-enqueue` creates or reads `article_queue`.
 3. Confirm `investigation_start` dispatches Fly work and writes an `ownership_trees` row.
 4. Load an already-complete article and confirm `get-evidence-batch` returns evidence.
-5. Sign in through Clerk, create a Stripe checkout session, complete payment, and confirm `credit_ledger` receives the purchase from `stripe-webhook`.
+5. Sign in through Clerk, use `Buy credits`, enter a whole-dollar amount, complete Stripe test checkout with card `4242 4242 4242 4242`, and confirm `credit_ledger` receives the purchase from `stripe-webhook`.
 6. Test company-pair lookup and research dispatch with a signed-in user.

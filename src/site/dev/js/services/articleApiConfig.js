@@ -39,8 +39,6 @@ export const ARTICLE_API_CONFIG = Object.freeze({
     clerkFrontendApiUrl,
     authMode: nonEmptyString(window.PEPE_AUTH_MODE, "real"),
     paymentsMode: nonEmptyString(window.PEPE_PAYMENTS_MODE, "real"),
-    creditPackId: "credits_10",
-    creditPackAmountUsd: 10,
     defaultBaseUrl: nonEmptyString(window.PEPE_DEFAULT_BASE_URL, "https://callback.pepesilv.ai"),
     supportedSitesPrefix: /^Supported sites:\s*/i,
     maxQueuePollAttempts: 20,

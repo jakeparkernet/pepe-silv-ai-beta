@@ -55,8 +55,8 @@ window.PEPE_BUILD_COMMIT_HASH = "";
 window.PEPE_COMPANY_PAIR_URL_INPUT_ENABLED = false;
 ```
 
-Open `http://127.0.0.1:3000/?tester=true` to reveal the hidden sign-in link.
-`?signup=true` is kept as a temporary alias for the same tester gate.
+Open `http://127.0.0.1:3000`. Signed-in users see their credit balance, `Buy
+credits`, account controls, and `Log out` in the top-right account area.
 
 Do not commit real keys.
 
@@ -108,7 +108,8 @@ root instead:
 .venv/bin/python -m http.server 3000 --directory src/site/dev
 ```
 
-Enable the gated credit flow in local Supabase Studio or SQL:
+Enable paid investigation spending in local Supabase Studio or SQL when testing
+new investigation debits or shared funding:
 
 ```sql
 update public.site_feature_flags
@@ -136,7 +137,15 @@ stripe listen --forward-to http://127.0.0.1:55421/functions/v1/stripe-webhook
 ```
 
 Copy the printed webhook signing secret into `STRIPE_WEBHOOK_SECRET`, restart
-`supabase functions serve`, then sign in locally and use `Buy $10 credits`.
+`supabase functions serve`, then sign in locally and use `Buy credits`. Enter a
+whole-dollar amount of `$1` or more; credits are granted 1:1 with USD after
+Stripe sends `checkout.session.completed`. Use Stripe test card
+`4242 4242 4242 4242` with any future expiration date, CVC, and ZIP.
+
+The sibling `/home/jake/repos/stripe` project is a useful test-mode Stripe
+reference and has local test keys configured, but Pepe credit purchases should
+go through Pepe's Supabase Edge `create-checkout-session` and `stripe-webhook`
+functions so purchases update Pepe's `credit_ledger`.
 
 ## Checks
 
@@ -153,8 +162,8 @@ git diff --check
 
 The full investigation path still depends on the existing callback worker,
 OpenRouter, and Fly.io runtime configuration. The credit-specific local checks
-are: sign-in links appear only when the feature flag is enabled, checkout creates
-a Stripe test session only while enabled, credit balance updates after webhook
-completion, a new URL start debits the flat `$0.05`, running costs are shown
-while queued/in progress, and insufficient credits move the row to
-`paused/needs_funding`.
+are: signed-in users can see balance and `Buy credits`, checkout accepts a
+whole-dollar amount, credit balance updates after webhook completion, a new URL
+start debits the flat `$0.05` when paid investigation spending is enabled,
+running costs are shown while queued/in progress, and insufficient credits move
+the row to `paused/needs_funding`.

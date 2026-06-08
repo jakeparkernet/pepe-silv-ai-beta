@@ -76,6 +76,7 @@ export class ArticleSubmissionController {
             lookupCompanyPair: api.lookupCompanyPair ?? null,
             startCompanyPairResearch: api.startCompanyPairResearch ?? null,
             createCheckoutSession: api.createCheckoutSession ?? null,
+            buyCredits: api.buyCredits ?? null,
             getCurrentUser: api.getCurrentUser ?? null,
             openSignIn: api.openSignIn ?? null
         };
@@ -1093,9 +1094,13 @@ export class ArticleSubmissionController {
 
     async onBuyCreditsClicked(event) {
         event?.preventDefault?.();
+        if (this.api.buyCredits != null) {
+            return await this.api.buyCredits();
+        }
+
         let result = null;
         try {
-            result = await this.api.createCheckoutSession?.({ packId: "credits_10" });
+            result = await this.api.createCheckoutSession?.({ amountUsd: 10 });
         } catch (error) {
             this.logger?.error?.("[credits] checkout failed", error);
             this.showSubmitStatusMessage("Could not start checkout.");

@@ -16,7 +16,6 @@ class ArticleApiService {
         this.clerkFrontendApiUrl = options.clerkFrontendApiUrl ?? ARTICLE_API_CONFIG.clerkFrontendApiUrl;
         this.authMode = options.authMode ?? ARTICLE_API_CONFIG.authMode ?? "real";
         this.paymentsMode = options.paymentsMode ?? ARTICLE_API_CONFIG.paymentsMode ?? "real";
-        this.creditPackId = options.creditPackId ?? ARTICLE_API_CONFIG.creditPackId ?? "credits_10";
         this.fetchImpl = options.fetchImpl ?? fetch;
         this.logger = options.logger ?? console;
         this.windowRef = options.windowRef ?? window;
@@ -722,10 +721,10 @@ class ArticleApiService {
         };
     }
 
-    async createCheckoutSession({ packId = this.creditPackId } = {}, supabase = this.getSupabaseClient()) {
+    async createCheckoutSession({ amountUsd } = {}, supabase = this.getSupabaseClient()) {
         const { data, error } = await supabase.functions.invoke("create-checkout-session", {
             body: {
-                pack_id: packId,
+                amount_usd: amountUsd,
                 ...this.getMockAuthBody()
             }
         });

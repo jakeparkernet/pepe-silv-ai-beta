@@ -123,18 +123,21 @@ class CreditSourceContractTests(unittest.TestCase):
         config = read_text("supabase/config.toml")
 
         for fragment in [
-            '.from("site_feature_flags")',
-            '.eq("key", "investigation_credits")',
-            "Credit purchases are not enabled",
-            "parseBooleanSetting(featureFlag.data?.enabled, false)",
             "verifyToken(token, verifyOptions)",
             'Deno.env.get("PEPE_AUTH_MODE")',
             'Deno.env.get("PEPE_PAYMENTS_MODE")',
+            "getCheckoutAmountUsd",
+            "body.amount_usd",
+            "Enter a whole dollar amount of at least $1",
+            "const creditsUsd = amountUsd;",
+            'form.set("metadata[amount_usd]", amountUsd.toFixed(2));',
             "cs_mock_",
             '.from("credit_ledger").insert',
         ]:
             with self.subTest(fragment=fragment):
                 self.assertIn(fragment, checkout)
+        self.assertNotIn("Credit purchases are not enabled", checkout)
+        self.assertNotIn("CREDIT_PACKS", checkout)
 
         for fragment in [
             'Deno.env.get("PEPE_AUTH_MODE")',
@@ -252,19 +255,21 @@ class CreditSourceContractTests(unittest.TestCase):
             "resumeArticleInvestigation",
             "Restarting investigation",
             "updateRunningCostDisplay",
-            "isTesterAccessUrl",
-            "handleUnauthorizedTester",
-            "Under construction.",
             "creditTesterAuthorized",
+            "openBuyCreditsModal",
+            "getBuyCreditsAmountFromInput",
+            "amountUsd",
         ]:
             with self.subTest(fragment=fragment):
                 self.assertIn(fragment, app)
 
-        self.assertIn("const showSignupButtons = testerGateEnabled && !isSignedIn;", app)
-        self.assertIn("const isTesterAuthorized = featureEnabled && testerGateEnabled && isSignedIn;", app)
+        self.assertIn("const showSignupButtons = !isSignedIn;", app)
+        self.assertIn("const isTesterAuthorized = featureEnabled && isSignedIn;", app)
         self.assertIn("const showSignedInAccountControls = isSignedIn;", app)
-        self.assertIn("const showCreditControls = featureEnabled && isTesterAuthorized;", app)
+        self.assertIn("const showCreditControls = isSignedIn;", app)
         self.assertIn("this.accountLogoutButton.hidden = !showSignedInAccountControls;", app)
+        self.assertNotIn("testerGateEnabled", app)
+        self.assertNotIn("credits_10", app)
 
         for fragment in [
             "isInvestigationCreditsEnabled",
