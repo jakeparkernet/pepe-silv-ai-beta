@@ -1,3 +1,5 @@
+const DEFAULT_CLERK_PUBLISHABLE_KEY = "pk_test_bGVnYWwtZ3J1Yi00NS5jbGVyay5hY2NvdW50cy5kZXYk";
+
 function nonEmptyString(value, fallback = "") {
     const normalized = String(value ?? "").trim();
     return normalized.length > 0 ? normalized : fallback;
@@ -25,7 +27,7 @@ function clerkFrontendApiUrlFromPublishableKey(publishableKey) {
 
 const clerkPublishableKey = nonEmptyString(
     window.PEPE_CLERK_PUBLISHABLE_KEY,
-    nonEmptyString(window.CLERK_PUBLISHABLE_KEY, nonEmptyString(window.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY))
+    nonEmptyString(window.CLERK_PUBLISHABLE_KEY, nonEmptyString(window.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY, DEFAULT_CLERK_PUBLISHABLE_KEY))
 );
 const clerkFrontendApiUrl = nonEmptyString(
     window.PEPE_CLERK_FRONTEND_API_URL,
@@ -45,7 +47,7 @@ export const ARTICLE_API_CONFIG = Object.freeze({
         .filter((email) => email.length > 0),
     creditPackId: "credits_10",
     creditPackAmountUsd: 10,
-    defaultBaseUrl: window.PEPE_DEFAULT_BASE_URL ?? "https://callback.pepesilv.ai",
+    defaultBaseUrl: nonEmptyString(window.PEPE_DEFAULT_BASE_URL, "https://callback.pepesilv.ai"),
     supportedSitesPrefix: /^Supported sites:\s*/i,
     maxQueuePollAttempts: 20,
     queuePollDelayMs: 150
