@@ -173,6 +173,7 @@ class App {
         this.authCreditBalance = document.getElementById("auth-credit-balance");
         this.authBuyCreditsButton = document.getElementById("auth-buy-credits-button");
         this.accountLinkButton = document.getElementById("account-link-button");
+        this.accountLogoutButton = document.getElementById("account-logout-button");
         this.fundInvestigationButton = document.getElementById("fund-investigation-button");
         this.optOutFundingButton = document.getElementById("opt-out-funding-button");
         this.authStatusMessage = document.getElementById("auth-status-message");
@@ -382,6 +383,9 @@ class App {
         this.accountLinkButton?.addEventListener("click", () => {
             void this.toggleAccountPanel();
         });
+        this.accountLogoutButton?.addEventListener("click", () => {
+            void this.logOut();
+        });
         this.accountToggleNotificationsButton?.addEventListener("click", () => {
             void this.toggleAccountNotifications();
         });
@@ -444,6 +448,28 @@ class App {
         await this.apiService.signOut();
         this.returnUnauthorizedUserHome();
         this.setAuthStatusMessage("Under construction.");
+    }
+
+    resetSignedOutAccountUi() {
+        this.creditTesterAuthorized = false;
+        this.accountPreferences = null;
+        this.accountPanel?.setAttribute("hidden", "");
+        this.updateFundingControls(null);
+        this.updateRunningCostDisplay();
+    }
+
+    async logOut() {
+        this.setAuthStatusMessage("");
+        try {
+            await this.apiService.signOut();
+        } catch (error) {
+            console.warn("[auth] could not sign out", error);
+            this.setAuthStatusMessage("Could not log out.");
+            return;
+        }
+
+        this.resetSignedOutAccountUi();
+        await this.updateAuthLinks();
     }
 
     async openAuthModal(mode = "signin") {
@@ -601,6 +627,9 @@ class App {
         }
         if (this.accountLinkButton != null) {
             this.accountLinkButton.hidden = !showCreditControls;
+        }
+        if (this.accountLogoutButton != null) {
+            this.accountLogoutButton.hidden = !showCreditControls;
         }
         if (this.clerkUserButton != null) {
             this.clerkUserButton.hidden = !showCreditControls;

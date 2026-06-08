@@ -297,6 +297,7 @@ body {
 
 #account-panel[hidden],
 #account-link-button[hidden],
+#account-logout-button[hidden],
 #fund-investigation-button[hidden],
 #opt-out-funding-button[hidden] {
     display: none;
