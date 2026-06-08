@@ -15,7 +15,7 @@ from app.core.db.database_service import DatabaseService
 from app.core.db.models import Entity
 from app.core.jobs.job import Job
 from app.core.jobs.job_status import JobStatus
-from app.core.jobs.openrouter_cost import OpenrouterCost
+from app.core.jobs.openrouter_cost import InvestigationFundingPaused, OpenrouterCost, _send_funding_notices
 from app.util.common_owner_frontier import serialize_common_owner_results
 from app.util.get_value_safe import get_value_safe
 from app.util.markers import returns_awaitable
@@ -88,6 +88,7 @@ class CompanyPairInvestigation(Job):
 
     _request_id: str = PrivateAttr(default="")
     _credit_reservation_id: Optional[str] = PrivateAttr(default=None)
+    _credit_feature_enabled: bool = PrivateAttr(default=False)
     _start_time: float = PrivateAttr(default=0.0)
     _fly_io_cost_per_second: float = PrivateAttr(default=0.00001196)
     _entities: Dict[str, Entity] = PrivateAttr(default_factory=dict)
@@ -106,6 +107,7 @@ class CompanyPairInvestigation(Job):
             return
 
         try:
+            self._credit_feature_enabled = self._is_feature_enabled("investigation_credits", False)
             self._fly_io_cost_per_second = self._get_money_setting("fly_io_cost_per_second", 0.00001196)
             self._mark_request({
                 "status": "in-progress",
@@ -138,12 +140,28 @@ class CompanyPairInvestigation(Job):
             logger.warning("Failed to read money setting %s", key, exc_info=True)
             return fallback
 
+    def _is_feature_enabled(self, key: str, fallback: bool = False) -> bool:
+        try:
+            supabase = _get_supabase_service_client()
+            res = supabase.table("site_feature_flags").select("enabled").eq("key", key).limit(1).execute()
+            row = (res.data or [None])[0]
+            if row is None:
+                return fallback
+            return bool(row.get("enabled"))
+        except Exception:
+            logger.warning("Failed to read feature flag %s", key, exc_info=True)
+            return fallback
+
     def _mark_request(self, patch: Dict[str, Any]) -> None:
         patch = {
             **patch,
             "updated_at": datetime.now().isoformat(),
         }
         _get_supabase_service_client().table("company_pair_requests").update(patch).eq("id", self._request_id).execute()
+
+    def on_credit_cost_updated(self) -> None:
+        if self._update_costs_and_pause_if_needed():
+            raise InvestigationFundingPaused("Investigation paused: more funding is required.")
 
     def _resolve_entity(self, side: str) -> None:
         company = self._get_company_input(side)
@@ -195,6 +213,8 @@ class CompanyPairInvestigation(Job):
             self._mark_request({
                 f"company_{side}_entity_id": entity.id,
             })
+            if self._update_costs_and_pause_if_needed():
+                return
 
             if side == "a":
                 self._resolve_entity("b")
@@ -242,6 +262,8 @@ class CompanyPairInvestigation(Job):
     async def on_build_tree_complete(self, side: str, job):
         try:
             self._tree_outputs[side] = get_value_safe(job, "output", {}) or {}
+            if self._update_costs_and_pause_if_needed():
+                return
 
             if side == "a":
                 self._build_tree("b")
@@ -308,7 +330,6 @@ class CompanyPairInvestigation(Job):
         )
 
         costs = self._calculate_costs()
-        self._settle_credits(costs)
         self._mark_request({
             "status": "complete",
             "ownership_tree_id": ownership_tree_id,
@@ -319,6 +340,8 @@ class CompanyPairInvestigation(Job):
             "ended_at": datetime.now().isoformat(),
             "error": None,
         })
+        if self._settle_credits(costs):
+            return
 
         output = {
             "request_id": self._request_id,
@@ -379,9 +402,15 @@ class CompanyPairInvestigation(Job):
             "runtime_seconds": runtime_seconds,
         }
 
-    def _settle_credits(self, costs: Dict[str, float]) -> None:
+    def _settle_credits(self, costs: Dict[str, float]) -> bool:
+        if self._credit_feature_enabled:
+            if self._apply_shared_credit_usage():
+                self._pause_request("Investigation paused: more funding is required.")
+                return True
+            return False
+
         if not self._credit_reservation_id:
-            return
+            return False
 
         try:
             _get_supabase_service_client().rpc("settle_credit_reservation", {
@@ -396,6 +425,61 @@ class CompanyPairInvestigation(Job):
             }).execute()
         except Exception:
             logger.warning("Failed to settle credit reservation", exc_info=True)
+        return False
+
+    def _apply_shared_credit_usage(self) -> bool:
+        if not self._credit_feature_enabled or not self._request_id:
+            return False
+
+        try:
+            res = _get_supabase_service_client().rpc("apply_company_pair_credit_usage", {
+                "p_request_id": self._request_id,
+            }).execute()
+            rows = res.data if isinstance(res.data, list) else []
+            row = rows[0] if rows else res.data
+            if isinstance(row, dict) and row.get("paused") is True:
+                return True
+        except Exception:
+            logger.warning("Failed to apply company-pair shared credit usage", exc_info=True)
+        return False
+
+    def _update_costs_and_pause_if_needed(self) -> bool:
+        if not self._request_id:
+            return False
+
+        costs = self._calculate_costs()
+        self._mark_request({
+            "openrouter_cost": costs["openrouter_cost"],
+            "fly_io_investigation_cost": costs["fly_io_investigation_cost"],
+            "markup_cost": costs["markup_cost"],
+            "total_cost": costs["total_cost"],
+        })
+
+        if self._apply_shared_credit_usage():
+            self._pause_request("Investigation paused: more funding is required.")
+            return True
+        return False
+
+    def _pause_request(self, message: str) -> None:
+        logger.info("[COMPANY PAIR INVESTIGATION PAUSED] request_id=%s reason=%s", self._request_id, message)
+        if self._request_id:
+            try:
+                costs = self._calculate_costs()
+                self._mark_request({
+                    "status": "paused",
+                    "funding_status": "needs_funding",
+                    "openrouter_cost": costs["openrouter_cost"],
+                    "fly_io_investigation_cost": costs["fly_io_investigation_cost"],
+                    "markup_cost": costs["markup_cost"],
+                    "total_cost": costs["total_cost"],
+                    "error": message,
+                })
+            except Exception:
+                logger.warning("Failed to mark company pair request paused", exc_info=True)
+        self._set_output({"status": "paused", "reason": message, "request_id": self._request_id})
+        self._set_status(JobStatus.PAUSED)
+        _send_funding_notices()
+        self._shutdown_or_stop()
 
     def _release_credits(self, reason: str) -> None:
         if not self._credit_reservation_id:

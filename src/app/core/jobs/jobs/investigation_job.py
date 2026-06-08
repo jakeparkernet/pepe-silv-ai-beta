@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Optional, Deque, Set, Tuple, Callable
 from app.core.jobs.job import Job
 from app.core.jobs.jobs.llm_callback_job import LlmCallbackJob
 from app.core.jobs.job_status import JobStatus
-from app.core.jobs.openrouter_cost import OpenrouterCost
+from app.core.jobs.openrouter_cost import InvestigationFundingPaused, OpenrouterCost, _apply_article_credit_usage
 from app.edge.edge_runner_factory import get_edge_runner
 from app.functions.clean_brave_results import clean_results
 from app.core.runtime.job_batcher import get_batcher
@@ -753,6 +753,8 @@ class InvestigationJob(Job):
             "fly_io_investigation_cost": fly_io_investigation_cost,
             "ended_at": datetime.now().isoformat()
         }, on_conflict="url").execute()
+        if self._pause_if_article_funding_required():
+            return
 
         self.set_output(self._final_output_obj)
         self.complete()
@@ -837,6 +839,8 @@ class InvestigationJob(Job):
             "fly_io_investigation_cost": fly_io_investigation_cost,
             "ended_at": datetime.now().isoformat()
         }, on_conflict="url").execute()
+        if self._pause_if_article_funding_required():
+            return
 
         self.set_output(self._final_output_obj)
         self.complete()
@@ -1829,6 +1833,8 @@ class InvestigationJob(Job):
             "fly_io_investigation_cost": fly_io_investigation_cost,
             "ended_at": datetime.now().isoformat()
         }, on_conflict="url").execute()
+        if self._pause_if_article_funding_required():
+            return
 
         self.set_output(self._final_output_obj)
         self.complete()
@@ -1880,6 +1886,20 @@ class InvestigationJob(Job):
             logger.info(f"Set article_queue status to {status}: {res.data}")
         except Exception as e:
             logger.error(f"Failed to set {status} status: {e}")
+
+    def _pause_if_article_funding_required(self) -> bool:
+        try:
+            _apply_article_credit_usage(self._queue_url_key)
+        except InvestigationFundingPaused as exc:
+            self.set_output({
+                "status": "paused",
+                "reason": str(exc),
+                "article_url": self._queue_url_key,
+            })
+            self.set_status(JobStatus.PAUSED)
+            self._shutdown_or_stop()
+            return True
+        return False
 
     def set_timeout_status(self):
         self._set_queue_status("timeout")
@@ -1975,6 +1995,8 @@ class InvestigationJob(Job):
             "fly_io_investigation_cost": fly_io_investigation_cost,
             "ended_at": datetime.now().isoformat()
         }, on_conflict="url").execute()
+        if self._pause_if_article_funding_required():
+            return
 
         self._final_output_obj = {
             "article_url": self._queue_url_key,

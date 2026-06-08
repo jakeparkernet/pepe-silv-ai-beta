@@ -84,7 +84,10 @@ cp src/app/supabase_edge/process-queued-articles.ts supabase/functions/process-q
 cp src/app/supabase_edge/company-pair-lookup.ts supabase/functions/company-pair-lookup/index.ts
 cp src/app/supabase_edge/company-pair-research-start.ts supabase/functions/company-pair-research-start/index.ts
 cp src/app/supabase_edge/create-checkout-session.ts supabase/functions/create-checkout-session/index.ts
+cp src/app/supabase_edge/credit-account.ts supabase/functions/credit-account/index.ts
 cp src/app/supabase_edge/stripe-webhook.ts supabase/functions/stripe-webhook/index.ts
+cp src/app/supabase_edge/delete-account.ts supabase/functions/delete-account/index.ts
+cp src/app/supabase_edge/send-funding-notices.ts supabase/functions/send-funding-notices/index.ts
 ```
 
 Deploy with JWT verification disabled for the browser-callable and internal-key handlers. `supabase/config.toml` records that setting, and the handler code still enforces user auth or `x-internal-key` where required.
@@ -98,7 +101,10 @@ supabase functions deploy process-queued-articles
 supabase functions deploy company-pair-lookup
 supabase functions deploy company-pair-research-start
 supabase functions deploy create-checkout-session
+supabase functions deploy credit-account
 supabase functions deploy stripe-webhook
+supabase functions deploy delete-account
+supabase functions deploy send-funding-notices
 supabase functions deploy safe-remove-old-articles
 ```
 
@@ -114,7 +120,16 @@ supabase secrets set SITE_URL="https://pepesilv.ai"
 supabase secrets set PUBLIC_SITE_URL="https://pepesilv.ai"
 supabase secrets set CLERK_AUTHORIZED_PARTIES="https://pepesilv.ai,https://www.pepesilv.ai"
 supabase secrets set CLERK_JWT_KEY="..."
+supabase secrets set PEPE_ALLOWED_TESTER_EMAILS="actorjakeparker@gmail.com"
+supabase secrets set PEPE_AUTH_MODE="real"
+supabase secrets set PEPE_PAYMENTS_MODE="real"
+supabase secrets set FUNDING_NOTICE_FROM_EMAIL="Pepe Silv.AI <notifications@pepesilv.ai>"
 ```
+
+For tester-only live checkout, keep `PEPE_PAYMENTS_MODE="real"` and set
+`STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` to Stripe test-mode values. The
+browser credit UI stays hidden from normal visitors unless the page is opened
+with `?tester=true` and the signed-in Clerk email is allowlisted.
 
 Keep the existing production values for:
 
@@ -134,10 +149,11 @@ Keep the existing production values for:
 - `WEAVIATE_URL`
 - `WEAVIATE_APIKEY` or `WEAVIATE_API_KEY`
 - `CLERK_SECRET_KEY` if `CLERK_JWT_KEY` is not used
+- `RESEND_API_KEY`
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
 
-Supabase Auth should use `https://pepesilv.ai` as the site URL, allow redirects for both `https://pepesilv.ai` and `https://www.pepesilv.ai`, and enable Clerk as a third-party auth provider using the Clerk domain from the Clerk Supabase setup page. Cloudflare Pages also needs `PEPE_CLERK_PUBLISHABLE_KEY` and `PEPE_CLERK_FRONTEND_API_URL` set as build environment variables so `runtime-config.js` is generated with the public Clerk browser configuration.
+Cloudflare Pages needs `PEPE_CLERK_PUBLISHABLE_KEY`, `PEPE_CLERK_FRONTEND_API_URL`, and `PEPE_ALLOWED_TESTER_EMAILS` set as build environment variables so `runtime-config.js` is generated with the public Clerk browser configuration and tester-only UI allowlist. Account and funding actions are verified in Edge Functions with Clerk keys and then executed with the Supabase service role, so Supabase Auth does not need Clerk third-party auth for the browser app flow. `PEPE_SUPABASE_URL`, `PEPE_SUPABASE_PUBLISHABLE_KEY`, and `PEPE_DEFAULT_BASE_URL` are optional public overrides for local or staging builds.
 
 Stripe webhook endpoint:
 

@@ -33,5 +33,10 @@
     "status": "in-progress",
     "message_three": "Investigating Article",
     "message_d3": "Investigating"
+  },
+  {
+    "status": "paused",
+    "message_three": "Needs Funding",
+    "message_d3": "Needs Funding"
   }
 ]

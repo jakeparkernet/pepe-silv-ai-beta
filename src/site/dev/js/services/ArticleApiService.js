@@ -1,3 +1,6 @@
+// Large service note: this file remains a single boundary for Supabase, Clerk,
+// URL normalization, and article mapping so current callers can keep one injected
+// API dependency until the controller boundaries are split deliberately.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 // import { ARTICLE_API_CONFIG } from "./articleApiConfig.js";
 // 
@@ -11,6 +14,9 @@ class ArticleApiService {
         this.supabaseKey = options.supabaseKey ?? ARTICLE_API_CONFIG.supabasePublishableKey;
         this.clerkPublishableKey = options.clerkPublishableKey ?? ARTICLE_API_CONFIG.clerkPublishableKey;
         this.clerkFrontendApiUrl = options.clerkFrontendApiUrl ?? ARTICLE_API_CONFIG.clerkFrontendApiUrl;
+        this.authMode = options.authMode ?? ARTICLE_API_CONFIG.authMode ?? "real";
+        this.paymentsMode = options.paymentsMode ?? ARTICLE_API_CONFIG.paymentsMode ?? "real";
+        this.allowedTesterEmails = options.allowedTesterEmails ?? ARTICLE_API_CONFIG.allowedTesterEmails ?? ["actorjakeparker@gmail.com"];
         this.creditPackId = options.creditPackId ?? ARTICLE_API_CONFIG.creditPackId ?? "credits_10";
         this.fetchImpl = options.fetchImpl ?? fetch;
         this.logger = options.logger ?? console;
@@ -41,10 +47,71 @@ class ArticleApiService {
     }
 
     isClerkConfigured() {
+        if (this.isMockAuthMode()) {
+            return true;
+        }
         return Boolean(
             String(this.clerkPublishableKey ?? "").trim() &&
             String(this.clerkFrontendApiUrl ?? "").trim()
         );
+    }
+
+    isMockAuthMode() {
+        return String(this.authMode ?? "").trim().toLowerCase() === "mock";
+    }
+
+    normalizeEmail(email) {
+        return String(email ?? "").trim().toLowerCase();
+    }
+
+    isAllowedTester(user) {
+        if (this.isMockAuthMode()) {
+            return true;
+        }
+
+        const userEmail = this.normalizeEmail(user?.email ?? "");
+        if (userEmail.length === 0) {
+            return false;
+        }
+
+        return this.allowedTesterEmails
+            .map((email) => this.normalizeEmail(email))
+            .includes(userEmail);
+    }
+
+    getMockUser() {
+        if (!this.isMockAuthMode()) {
+            return null;
+        }
+        const userId = this.windowRef.localStorage?.getItem("pepe_mock_user_id") || "";
+        if (!userId) {
+            return null;
+        }
+        return {
+            id: userId,
+            email: this.windowRef.localStorage?.getItem("pepe_mock_email") || "local@example.test",
+            raw: { mock: true }
+        };
+    }
+
+    setMockUser() {
+        const userId = "user_mock_local";
+        this.windowRef.localStorage?.setItem("pepe_mock_user_id", userId);
+        this.windowRef.localStorage?.setItem("pepe_mock_email", "local@example.test");
+        return this.getMockUser();
+    }
+
+    clearMockUser() {
+        this.windowRef.localStorage?.removeItem("pepe_mock_user_id");
+        this.windowRef.localStorage?.removeItem("pepe_mock_email");
+    }
+
+    getMockAuthBody() {
+        const user = this.getMockUser();
+        return user == null ? {} : {
+            mock_user_id: user.id,
+            mock_email: user.email
+        };
     }
 
     loadExternalScript(src, attributes = {}) {
@@ -80,6 +147,9 @@ class ArticleApiService {
     }
 
     async initializeClerk() {
+        if (this.isMockAuthMode()) {
+            return null;
+        }
         if (!this.isClerkConfigured()) {
             return null;
         }
@@ -152,6 +222,10 @@ class ArticleApiService {
     }
 
     async openAuth(mode = "signin") {
+        if (this.isMockAuthMode()) {
+            this.setMockUser();
+            return true;
+        }
         const clerk = await this.initializeClerk();
         if (clerk == null) {
             return false;
@@ -171,12 +245,20 @@ class ArticleApiService {
     }
 
     async signOut() {
+        if (this.isMockAuthMode()) {
+            this.clearMockUser();
+            return;
+        }
         const clerk = await this.initializeClerk();
         return await clerk?.signOut?.();
     }
 
     async mountUserButton(target) {
         if (target == null) {
+            return false;
+        }
+        if (this.isMockAuthMode()) {
+            target.hidden = true;
             return false;
         }
 
@@ -197,6 +279,9 @@ class ArticleApiService {
     }
 
     async addAuthListener(callback) {
+        if (this.isMockAuthMode()) {
+            return null;
+        }
         const clerk = await this.initializeClerk();
         if (clerk == null || typeof clerk.addListener !== "function") {
             return null;
@@ -473,7 +558,8 @@ class ArticleApiService {
             .invoke("get-or-enqueue", {
                 body: {
                     url: normalizedTargetUrl,
-                    use_edge_pre_investigation_check: true
+                    use_edge_pre_investigation_check: true,
+                    ...this.getMockAuthBody()
                 }
             })
             .then(({ data, error }) => ({ data, error }))
@@ -644,7 +730,10 @@ class ArticleApiService {
 
     async startCompanyPairResearch(payload, supabase = this.getSupabaseClient()) {
         const { data, error } = await supabase.functions.invoke("company-pair-research-start", {
-            body: payload
+            body: {
+                ...payload,
+                ...this.getMockAuthBody()
+            }
         });
 
         return {
@@ -656,7 +745,8 @@ class ArticleApiService {
     async createCheckoutSession({ packId = this.creditPackId } = {}, supabase = this.getSupabaseClient()) {
         const { data, error } = await supabase.functions.invoke("create-checkout-session", {
             body: {
-                pack_id: packId
+                pack_id: packId,
+                ...this.getMockAuthBody()
             }
         });
 
@@ -667,6 +757,15 @@ class ArticleApiService {
     }
 
     async getCurrentUser() {
+        if (this.isMockAuthMode()) {
+            return {
+                data: {
+                    user: this.getMockUser()
+                },
+                error: null
+            };
+        }
+
         const clerk = await this.initializeClerk().catch((error) => {
             this.logger?.warn?.("[auth] could not initialize Clerk", error);
             return null;
@@ -690,18 +789,158 @@ class ArticleApiService {
             return { data: null, error: null };
         }
 
-        const { data, error } = await supabase.rpc("get_credit_balance", {
-            p_user_id: user.id
+        const { data, error } = await supabase.functions.invoke("credit-account", {
+            body: {
+                action: "get",
+                ...this.getMockAuthBody()
+            }
         });
+        return {
+            data: this.parseJsonRecursively(data?.balance ?? null),
+            error
+        };
+    }
+
+    async isInvestigationCreditsEnabled(supabase = this.getSupabaseClient()) {
+        const { data, error } = await supabase
+            .from("site_feature_flags")
+            .select("enabled")
+            .eq("key", "investigation_credits")
+            .maybeSingle();
 
         if (error) {
-            return { data: null, error };
+            return { data: false, error };
         }
 
-        const row = Array.isArray(data) ? data[0] ?? null : data ?? null;
+        return { data: data?.enabled === true, error: null };
+    }
+
+    async getAccountPreferences(supabase = this.getSupabaseClient()) {
+        const { data: userData, error: userError } = await this.getCurrentUser();
+        if (userError) {
+            return { data: null, error: userError };
+        }
+
+        const user = userData?.user ?? null;
+        if (user == null) {
+            return { data: null, error: null };
+        }
+
+        const { data, error } = await supabase.functions.invoke("credit-account", {
+            body: {
+                action: "get",
+                ...this.getMockAuthBody()
+            }
+        });
         return {
-            data: this.parseJsonRecursively(row),
-            error: null
+            data: this.parseJsonRecursively(data?.account_preferences ?? null),
+            error
+        };
+    }
+
+    async updateAccountPreferences(options = {}, supabase = this.getSupabaseClient()) {
+        const { data: userData, error: userError } = await this.getCurrentUser();
+        if (userError) {
+            return { data: null, error: userError };
+        }
+
+        const user = userData?.user ?? null;
+        if (user == null) {
+            return { data: null, error: new Error("Sign in required") };
+        }
+
+        const { data, error } = await supabase.functions.invoke("credit-account", {
+            body: {
+                action: "update_preferences",
+                email_notifications_enabled: options.emailNotificationsEnabled ?? null,
+                delete_account: options.deleteAccount === true,
+                ...this.getMockAuthBody()
+            }
+        });
+        return {
+            data: this.parseJsonRecursively(data?.account_preferences ?? null),
+            error
+        };
+    }
+
+    async deleteAccount(supabase = this.getSupabaseClient()) {
+        const { data, error } = await supabase.functions.invoke("delete-account", {
+            body: {
+                ...this.getMockAuthBody()
+            }
+        });
+
+        return {
+            data: this.parseJsonRecursively(data),
+            error
+        };
+    }
+
+    async fundArticleInvestigation(queueId, supabase = this.getSupabaseClient()) {
+        const { data: userData, error: userError } = await this.getCurrentUser();
+        if (userError) {
+            return { data: null, error: userError };
+        }
+
+        const user = userData?.user ?? null;
+        if (user == null) {
+            return { data: null, error: new Error("Sign in required") };
+        }
+
+        const { data, error } = await supabase.functions.invoke("credit-account", {
+            body: {
+                action: "fund_article",
+                queue_id: queueId,
+                ...this.getMockAuthBody()
+            }
+        });
+        return {
+            data: this.parseJsonRecursively(data?.funder ?? null),
+            error
+        };
+    }
+
+    async optOutArticleFunding(queueId, supabase = this.getSupabaseClient()) {
+        const { data: userData, error: userError } = await this.getCurrentUser();
+        if (userError) {
+            return { data: null, error: userError };
+        }
+
+        const user = userData?.user ?? null;
+        if (user == null) {
+            return { data: null, error: new Error("Sign in required") };
+        }
+
+        const { data, error } = await supabase.functions.invoke("credit-account", {
+            body: {
+                action: "opt_out_article",
+                queue_id: queueId,
+                ...this.getMockAuthBody()
+            }
+        });
+        return {
+            data,
+            error
+        };
+    }
+
+    async resumeArticleInvestigation(targetUrl, supabase = this.getSupabaseClient()) {
+        const normalizedTargetUrl = this.normalizeUserUrl(targetUrl);
+        if (normalizedTargetUrl === null) {
+            return { data: null, error: new Error("Invalid URL") };
+        }
+
+        const { data, error } = await supabase.functions.invoke("get-or-enqueue", {
+            body: {
+                url: normalizedTargetUrl,
+                use_edge_pre_investigation_check: true,
+                ...this.getMockAuthBody()
+            }
+        });
+
+        return {
+            data: this.parseJsonRecursively(data),
+            error
         };
     }
 

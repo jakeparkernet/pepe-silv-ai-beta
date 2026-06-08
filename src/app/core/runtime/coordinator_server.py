@@ -37,7 +37,7 @@ from app.core.runtime.sqlite_indempotency import SQLiteIdempotency
 from app.util.build_load_order_from_child_jobs import build_load_order_from_child_jobs
 from app.util.generate_dedupe_key import generate_dedupe_key
 from app.util.hmac_utils import validate_hmac
-from app.core.jobs.openrouter_cost import OpenrouterCost
+from app.core.jobs.openrouter_cost import InvestigationFundingPaused, OpenrouterCost
 from app.util.s3_log_forwarder import S3LogForwarder
 
 PEPE_API_KEY = os.getenv("PEPE_API_KEY")
@@ -571,7 +571,19 @@ class CoordinatorServer:
                 usage = full_completion.get("usage", {})
                 cost = usage.get("cost")
                 if cost is not None:
-                    OpenrouterCost.get_instance().add_cost(cost)
+                    try:
+                        OpenrouterCost.get_instance().add_cost(cost)
+                    except InvestigationFundingPaused as exc:
+                        OpenrouterCost.get_instance().pause_current_investigation(str(exc))
+                        body = {
+                            "status": "paused",
+                            "job_id": job_id,
+                            "reason": "funding_required",
+                            "detail": str(exc),
+                        }
+                        await self.idempotency.store_done(idemp_key, 200, body)
+                        logging.info("Paused job callback for funding: job_id=%s", job_id)
+                        return
 
             if isinstance(result_data, dict) and result_data.get("ok") is False:
                 body = {

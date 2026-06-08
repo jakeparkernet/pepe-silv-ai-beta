@@ -1,5 +1,61 @@
 create extension if not exists pgcrypto;
 
+create table if not exists public.settings (
+    key text primary key,
+    value text not null,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
+create table if not exists public.sites (
+    id text primary key default gen_random_uuid()::text,
+    domain text not null unique,
+    news_site text,
+    rss jsonb not null default '[]'::jsonb,
+    metadata jsonb not null default '{}'::jsonb,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
+create table if not exists public.ownership_trees (
+    id uuid primary key default gen_random_uuid(),
+    company_a text,
+    company_b text,
+    ownership_tree jsonb not null default '{}'::jsonb,
+    investigation_data jsonb not null default '{}'::jsonb,
+    summary text not null default '',
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
+create index if not exists ownership_trees_company_a_b_idx
+    on public.ownership_trees(company_a, company_b);
+
+create table if not exists public.article_queue (
+    id uuid primary key default gen_random_uuid(),
+    url text not null unique,
+    site_id text,
+    status text not null default 'queued',
+    remote_requested_at timestamptz,
+    started_at timestamptz,
+    ended_at timestamptz,
+    machine_id text,
+    ownership_tree_id uuid references public.ownership_trees(id) on delete set null,
+    article_subject_id text,
+    investigation_prepass_results text,
+    applicability_result text,
+    ad_check_result text,
+    openrouter_cost numeric(12, 6),
+    investigation_run_time numeric(14, 6),
+    fly_io_investigation_cost numeric(12, 6),
+    metadata jsonb not null default '{}'::jsonb,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
+create index if not exists article_queue_status_idx
+    on public.article_queue(status, created_at);
+
 create table if not exists public.credit_accounts (
     user_id uuid primary key references auth.users(id) on delete cascade,
     created_at timestamptz not null default now(),

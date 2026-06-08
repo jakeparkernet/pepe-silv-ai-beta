@@ -1,3 +1,6 @@
+// Large composition root note: this file is intentionally kept as the app wiring
+// surface for now because splitting it safely requires untangling global loader
+// state, runtime module binding, and cross-controller lifecycle ownership.
 // import { ArticleApiService } from "./services/ArticleApiService.js";
 // import { ChromeController } from "./controllers/ChromeController.js";
 // import { PageBackgroundController } from "./controllers/PageBackgroundController.js";
@@ -169,11 +172,22 @@ class App {
         this.authLinksSeparator = document.getElementById("auth-links-separator");
         this.authCreditBalance = document.getElementById("auth-credit-balance");
         this.authBuyCreditsButton = document.getElementById("auth-buy-credits-button");
+        this.accountLinkButton = document.getElementById("account-link-button");
+        this.fundInvestigationButton = document.getElementById("fund-investigation-button");
+        this.optOutFundingButton = document.getElementById("opt-out-funding-button");
         this.authStatusMessage = document.getElementById("auth-status-message");
         this.clerkUserButton = document.getElementById("clerk-user-button");
+        this.accountPanel = document.getElementById("account-panel");
+        this.accountToggleNotificationsButton = document.getElementById("account-toggle-notifications-button");
+        this.accountDeleteButton = document.getElementById("account-delete-button");
+        this.runningCostDisplay = document.getElementById("running-cost-display");
         this.clerkUserButtonMounted = false;
         this.authListenerUnsubscribe = null;
-        this.signupButtonsEnabled = new URL(this.windowRef.location.href).searchParams.get("signup") === "true";
+        this.testerAccessEnabled = this.isTesterAccessUrl();
+        this.accountPreferences = null;
+        this.currentPendingArticleObject = null;
+        this.investigationCreditsEnabled = false;
+        this.creditTesterAuthorized = false;
 
         this.loaderState = {
             retrieval: false,
@@ -318,6 +332,7 @@ class App {
                 setArticleStatusSpotlightEnabled: (enabled) => this.setArticleStatusSpotlightEnabled(enabled)
             },
             callbacks: {
+                onPendingArticleState: (articleObject) => this.handlePendingArticleStateChanged(articleObject),
                 onResolvedArticle: (articleObject, meta) => this.handleResolvedArticle(articleObject, meta),
                 onAfterResolvedArticle: async () => {
                     await this.submissionController.fadeOutForeground();
@@ -364,8 +379,29 @@ class App {
         this.authBuyCreditsButton?.addEventListener("click", () => {
             void this.buyCredits();
         });
+        this.accountLinkButton?.addEventListener("click", () => {
+            void this.toggleAccountPanel();
+        });
+        this.accountToggleNotificationsButton?.addEventListener("click", () => {
+            void this.toggleAccountNotifications();
+        });
+        this.accountDeleteButton?.addEventListener("click", () => {
+            void this.deleteAccount();
+        });
+        this.fundInvestigationButton?.addEventListener("click", () => {
+            void this.fundCurrentInvestigation();
+        });
+        this.optOutFundingButton?.addEventListener("click", () => {
+            void this.optOutCurrentFunding();
+        });
 
         try {
+            const flagResult = await this.apiService.isInvestigationCreditsEnabled();
+            this.investigationCreditsEnabled = flagResult.data === true;
+            if (!this.investigationCreditsEnabled || !this.testerAccessEnabled) {
+                await this.updateAuthLinks();
+                return;
+            }
             await this.apiService.initializeClerk();
             this.authListenerUnsubscribe = await this.apiService.addAuthListener(() => {
                 void this.updateAuthLinks();
@@ -387,12 +423,37 @@ class App {
         this.authStatusMessage.hidden = message.length === 0;
     }
 
+    isTesterAccessUrl() {
+        const params = new URL(this.windowRef.location.href).searchParams;
+        return params.get("tester") === "true" || params.get("signup") === "true";
+    }
+
+    returnUnauthorizedUserHome() {
+        this.creditTesterAuthorized = false;
+        this.testerAccessEnabled = false;
+        this.resetHomepageStateIfNeeded();
+
+        const url = new URL(this.windowRef.location.href);
+        url.searchParams.delete("tester");
+        url.searchParams.delete("signup");
+        url.searchParams.delete("url");
+        this.windowRef.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+    }
+
+    async handleUnauthorizedTester() {
+        await this.apiService.signOut();
+        this.returnUnauthorizedUserHome();
+        this.setAuthStatusMessage("Under construction.");
+    }
+
     async openAuthModal(mode = "signin") {
         this.setAuthStatusMessage("");
         try {
             const opened = await this.apiService.openAuth(mode);
             if (!opened) {
                 this.setAuthStatusMessage("Account sign-in is not configured.");
+            } else {
+                await this.updateAuthLinks();
             }
             return opened;
         } catch (error) {
@@ -426,6 +487,81 @@ class App {
         this.authCreditBalance.textContent = `Credits $${available.toFixed(2)}`;
     }
 
+    async updateAccountPreferences(user) {
+        if (user == null) {
+            this.accountPreferences = null;
+            this.accountPanel?.setAttribute("hidden", "");
+            return;
+        }
+
+        const { data, error } = await this.apiService.getAccountPreferences();
+        if (error) {
+            console.warn("[account] could not read preferences", error);
+            return;
+        }
+
+        this.accountPreferences = data;
+        this.updateAccountPanelText();
+    }
+
+    updateAccountPanelText() {
+        if (this.accountToggleNotificationsButton == null) {
+            return;
+        }
+
+        const enabled = this.accountPreferences?.email_notifications_enabled !== false;
+        this.accountToggleNotificationsButton.textContent = enabled
+            ? "Turn off funding emails"
+            : "Turn on funding emails";
+    }
+
+    async toggleAccountPanel() {
+        if (this.accountPanel == null) {
+            return;
+        }
+
+        const { data } = await this.apiService.getCurrentUser();
+        if (data?.user == null) {
+            await this.openAuthModal("signin");
+            return;
+        }
+
+        await this.updateAccountPreferences(data.user);
+        this.accountPanel.hidden = !this.accountPanel.hidden;
+    }
+
+    async toggleAccountNotifications() {
+        const enabled = this.accountPreferences?.email_notifications_enabled !== false;
+        const { data, error } = await this.apiService.updateAccountPreferences({
+            emailNotificationsEnabled: !enabled
+        });
+        if (error) {
+            this.setAuthStatusMessage("Could not update account.");
+            return;
+        }
+
+        this.accountPreferences = data;
+        this.updateAccountPanelText();
+        this.setAuthStatusMessage("");
+    }
+
+    async deleteAccount() {
+        const confirmed = this.windowRef.confirm?.("Delete your account data for Pepe Silv.AI?") === true;
+        if (!confirmed) {
+            return;
+        }
+
+        const { error } = await this.apiService.deleteAccount();
+        if (error) {
+            this.setAuthStatusMessage("Could not mark account for deletion.");
+            return;
+        }
+
+        await this.apiService.signOut();
+        await this.updateAuthLinks();
+        this.setAuthStatusMessage("Account marked for deletion.");
+    }
+
     async updateAuthLinks() {
         let user = null;
         try {
@@ -434,8 +570,22 @@ class App {
         } catch (error) {
             console.warn("[auth] could not read current user", error);
         }
-        const isSignedIn = user != null;
-        const showSignupButtons = this.signupButtonsEnabled && !isSignedIn;
+        let isSignedIn = user != null;
+        const featureEnabled = this.investigationCreditsEnabled === true;
+        let testerGateEnabled = this.testerAccessEnabled === true;
+        let isTesterAuthorized = featureEnabled && testerGateEnabled && isSignedIn && this.apiService.isAllowedTester(user);
+
+        if (featureEnabled && testerGateEnabled && isSignedIn && !isTesterAuthorized) {
+            await this.handleUnauthorizedTester();
+            user = null;
+            isSignedIn = false;
+            testerGateEnabled = false;
+            isTesterAuthorized = false;
+        }
+
+        this.creditTesterAuthorized = isTesterAuthorized;
+        const showSignupButtons = featureEnabled && testerGateEnabled && !isSignedIn;
+        const showCreditControls = featureEnabled && isTesterAuthorized;
 
         if (this.authSignInLink != null) {
             this.authSignInLink.hidden = !showSignupButtons;
@@ -447,32 +597,183 @@ class App {
             this.authLinksSeparator.hidden = !showSignupButtons;
         }
         if (this.authBuyCreditsButton != null) {
-            this.authBuyCreditsButton.hidden = !isSignedIn;
+            this.authBuyCreditsButton.hidden = !showCreditControls;
+        }
+        if (this.accountLinkButton != null) {
+            this.accountLinkButton.hidden = !showCreditControls;
         }
         if (this.clerkUserButton != null) {
-            this.clerkUserButton.hidden = !isSignedIn;
-            if (isSignedIn && !this.clerkUserButtonMounted) {
+            this.clerkUserButton.hidden = !showCreditControls;
+            if (showCreditControls && !this.clerkUserButtonMounted) {
                 this.clerkUserButtonMounted = await this.apiService.mountUserButton(this.clerkUserButton);
             }
         }
 
-        await this.updateCreditBalance(user);
+        await this.updateCreditBalance(showCreditControls ? user : null);
+        await this.updateAccountPreferences(showCreditControls ? user : null);
+        this.updateFundingControls(showCreditControls ? user : null);
+        this.updateRunningCostDisplay();
     }
 
     async buyCredits({ packId = this.apiService.creditPackId } = {}) {
         this.setAuthStatusMessage("");
+        if (!this.creditTesterAuthorized) {
+            await this.openAuthModal("signin");
+            return false;
+        }
         const { data, error } = await this.apiService.createCheckoutSession({ packId });
         if (error || !data?.checkout_url) {
             const status = error?.context?.status ?? data?.status ?? null;
-            this.setAuthStatusMessage(error?.message ?? data?.error ?? "Could not start checkout.");
+            const message = error?.message ?? data?.error ?? "Could not start checkout.";
+            this.setAuthStatusMessage(message === "under_construction" ? "Under construction." : message);
             if (status === 401) {
                 await this.openAuthModal("signin");
+            }
+            if (status === 403 || message === "under_construction") {
+                await this.handleUnauthorizedTester();
             }
             return false;
         }
 
         this.windowRef.location.assign(data.checkout_url);
         return true;
+    }
+
+    getArticleRunningCost(articleObject) {
+        const article = articleObject?.article ?? null;
+        if (article == null) {
+            return 0;
+        }
+
+        const openrouterCost = Number(article.openrouter_cost ?? 0) || 0;
+        let flyCost = Number(article.fly_io_investigation_cost ?? 0) || 0;
+        const status = String(article.status ?? "").toLowerCase();
+        const isRunning = status === "queued" || status === "in-progress" || status.startsWith("prepass:");
+        const startedAtRaw = article.remote_requested_at ?? article.started_at ?? article.created_at ?? null;
+        if (flyCost <= 0 && isRunning && startedAtRaw != null) {
+            const startedAt = new Date(startedAtRaw).getTime();
+            if (Number.isFinite(startedAt)) {
+                const elapsedSeconds = Math.max(0, (Date.now() - startedAt) / 1000);
+                flyCost = elapsedSeconds * 0.00001196;
+            }
+        }
+
+        return openrouterCost + flyCost;
+    }
+
+    updateRunningCostDisplay(articleObject = this.currentPendingArticleObject) {
+        if (this.runningCostDisplay == null) {
+            return;
+        }
+        if (!this.creditTesterAuthorized) {
+            this.runningCostDisplay.hidden = true;
+            this.runningCostDisplay.textContent = "";
+            return;
+        }
+
+        const article = articleObject?.article ?? null;
+        const status = String(article?.status ?? "").toLowerCase();
+        const shouldShow =
+            article != null &&
+            (
+                status === "queued" ||
+                status === "in-progress" ||
+                status.startsWith("prepass:") ||
+                article.funding_status === "needs_funding"
+            );
+
+        if (!shouldShow) {
+            this.runningCostDisplay.hidden = true;
+            this.runningCostDisplay.textContent = "";
+            return;
+        }
+
+        const cost = this.getArticleRunningCost(articleObject);
+        const fundingStatus = article.funding_status === "needs_funding" ? " - needs funding" : "";
+        this.runningCostDisplay.textContent = `Running cost $${cost.toFixed(4)}${fundingStatus}`;
+        this.runningCostDisplay.hidden = false;
+    }
+
+    updateFundingControls(user = null) {
+        const article = this.currentPendingArticleObject?.article ?? null;
+        const isSignedIn = user != null;
+        const canUseCreditControls = this.creditTesterAuthorized === true;
+        const status = String(article?.status ?? "").toLowerCase();
+        const isOngoing =
+            status === "queued" ||
+            status === "in-progress" ||
+            status.startsWith("prepass:") ||
+            article?.funding_status === "needs_funding";
+        const isStarter = isSignedIn && article?.started_by_user_id === user.id;
+        const canFund = canUseCreditControls && isSignedIn && article?.id != null && isOngoing && !isStarter;
+        const canOptOut = canUseCreditControls && isSignedIn && article?.id != null && isOngoing && !isStarter;
+
+        if (this.fundInvestigationButton != null) {
+            this.fundInvestigationButton.hidden = !canFund;
+        }
+        if (this.optOutFundingButton != null) {
+            this.optOutFundingButton.hidden = !canOptOut;
+        }
+    }
+
+    async fundCurrentInvestigation() {
+        const currentArticle = this.currentPendingArticleObject?.article ?? null;
+        const queueId = currentArticle?.id ?? null;
+        if (queueId == null) {
+            return false;
+        }
+
+        const { error } = await this.apiService.fundArticleInvestigation(queueId);
+        if (error) {
+            this.setAuthStatusMessage(error.message ?? "Could not fund investigation.");
+            return false;
+        }
+
+        this.setAuthStatusMessage("Funding enabled. Restarting investigation.");
+        const articleUrl = currentArticle?.url ?? this.urlInput?.value ?? "";
+        if (articleUrl) {
+            const resumeResult = await this.apiService.resumeArticleInvestigation(articleUrl);
+            if (resumeResult.error) {
+                this.setAuthStatusMessage(resumeResult.error.message ?? "Funding enabled, but restart failed.");
+            } else if (resumeResult.data?.queue != null) {
+                await this.handlePendingArticleStateChanged({
+                    article: resumeResult.data.queue
+                });
+            }
+        }
+        await this.updateAuthLinks();
+        return true;
+    }
+
+    async optOutCurrentFunding() {
+        const queueId = this.currentPendingArticleObject?.article?.id ?? null;
+        if (queueId == null) {
+            return false;
+        }
+
+        const { error } = await this.apiService.optOutArticleFunding(queueId);
+        if (error) {
+            this.setAuthStatusMessage(error.message ?? "Could not stop funding.");
+            return false;
+        }
+
+        this.setAuthStatusMessage("Funding stopped.");
+        await this.updateAuthLinks();
+        return true;
+    }
+
+    async handlePendingArticleStateChanged(articleObject) {
+        this.currentPendingArticleObject = articleObject;
+        this.updateRunningCostDisplay(articleObject);
+
+        let user = null;
+        try {
+            const { data } = await this.apiService.getCurrentUser();
+            user = data?.user ?? null;
+        } catch (_error) {
+            user = null;
+        }
+        this.updateFundingControls(user);
     }
 
     handleCreditReturnParam() {
@@ -914,6 +1215,7 @@ class App {
 
         this.pendingResolvedArticle = null;
         this.pendingArticleStatus = null;
+        this.currentPendingArticleObject = null;
         this.submissionController?.stopArticleStatusPolling?.();
         this.submissionController?.invalidateSubmitFlow?.();
 
@@ -923,6 +1225,8 @@ class App {
 
         this.resetUrlInputMode();
         this.hideArticleStatusProgress();
+        this.updateRunningCostDisplay(null);
+        this.updateFundingControls(null);
         this.clearCurrentArticleView();
         this.hideArticleUrlDisplay();
         this.hideNewSearchContainer();
@@ -1204,6 +1508,7 @@ class App {
     }
 
     updateArticleStatusProgress(articleObject) {
+        void this.handlePendingArticleStateChanged(articleObject);
         if (!this.runtimeState.d3 || !this.runtimeState.three) {
             this.pendingArticleStatus = articleObject;
             return false;
@@ -1371,6 +1676,9 @@ class App {
         }
 
         this.pendingArticleStatus = null;
+        this.currentPendingArticleObject = null;
+        this.updateRunningCostDisplay(null);
+        this.updateFundingControls(null);
         this.entities = {};
         this.relationships = {};
         this.evidenceIds = new Set();

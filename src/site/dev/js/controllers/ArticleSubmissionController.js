@@ -294,6 +294,10 @@ export class ArticleSubmissionController {
             return `This article appears to be about ${entityLabel} for ${siteLabel} and has been queued for investigation.`;
         }
 
+        if (article.funding_status === "needs_funding") {
+            return "This investigation needs more funding before it can continue.";
+        }
+
         if (status === "in-progress") {
             return "This article is currently being investigated.";
         }
@@ -1139,6 +1143,7 @@ export class ArticleSubmissionController {
 
         const initialMessage = this.getQueueStatusMessage(articleObject);
         this.showSubmitStatusMessage(initialMessage);
+        callMaybe(this.callbacks.onPendingArticleState, articleObject);
         if (!this.isSubmitFlowActive(submitToken)) {
             return false;
         }
@@ -1207,6 +1212,7 @@ export class ArticleSubmissionController {
                 return;
             }
             this.showSubmitStatusMessage(this.getQueueStatusMessage(articleObject));
+            callMaybe(this.callbacks.onPendingArticleState, articleObject);
             await this.updateArticleStatusProgress(articleObject);
             if (!this.isSubmitFlowActive(submitToken)) {
                 return;

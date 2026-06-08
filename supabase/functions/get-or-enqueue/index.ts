@@ -1,5 +1,9 @@
+// Large Edge Function note: this file owns the full get-or-enqueue pipeline,
+// including validation, pre-investigation checks, queue persistence, and dispatch.
+// Splitting it cleanly needs a shared Deno module layout for Supabase Functions.
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { verifyToken } from "https://esm.sh/@clerk/backend@1";
 
 // ==================== CORS CONFIG ====================
 const ALLOWED_ORIGINS = new Set(
@@ -64,6 +68,10 @@ type OwnershipTreeRow = {
   ownership_tree: Record<string, unknown>;
   investigation_data: Record<string, unknown>;
   summary: string | null;
+};
+type ClerkUser = {
+  id: string;
+  email: string | null;
 };
 
 function getCorsHeaders(requestOrigin: string | null): Record<string, string> {
@@ -149,6 +157,113 @@ function jsonResponse(
       ...extraHeaders,
     },
   });
+}
+
+function parseBooleanSetting(value: unknown, fallback = false): boolean {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["true", "1", "yes", "on"].includes(normalized)) return true;
+    if (["false", "0", "no", "off"].includes(normalized)) return false;
+  }
+  return fallback;
+}
+
+function getClerkAuthorizedParties(): string[] {
+  return (Deno.env.get("CLERK_AUTHORIZED_PARTIES") ?? "")
+    .split(",")
+    .map((party) => party.trim())
+    .filter(Boolean);
+}
+
+function isMockAuthEnabled(): boolean {
+  return (Deno.env.get("PEPE_AUTH_MODE") ?? "").trim().toLowerCase() === "mock";
+}
+
+function getAllowedTesterEmails(): string[] {
+  return (Deno.env.get("PEPE_ALLOWED_TESTER_EMAILS") ?? "actorjakeparker@gmail.com")
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function getClaimEmail(claims: Record<string, unknown>): string | null {
+  return typeof claims.email === "string"
+    ? claims.email
+    : typeof claims.email_address === "string"
+      ? claims.email_address
+      : null;
+}
+
+async function getClerkUserEmail(userId: string): Promise<string | null> {
+  const clerkSecretKey = Deno.env.get("CLERK_SECRET_KEY") ?? "";
+  if (!clerkSecretKey) return null;
+
+  const res = await fetch(`https://api.clerk.com/v1/users/${encodeURIComponent(userId)}`, {
+    headers: {
+      "Authorization": `Bearer ${clerkSecretKey}`,
+      "Content-Type": "application/json",
+    },
+  });
+  if (!res.ok) return null;
+
+  const data = await res.json().catch(() => null) as Record<string, unknown> | null;
+  const primaryEmailId = typeof data?.primary_email_address_id === "string" ? data.primary_email_address_id : "";
+  const emailAddresses = Array.isArray(data?.email_addresses) ? data.email_addresses : [];
+  for (const rawEmail of emailAddresses) {
+    if (rawEmail === null || typeof rawEmail !== "object") continue;
+    const email = rawEmail as Record<string, unknown>;
+    const id = typeof email.id === "string" ? email.id : "";
+    const address = typeof email.email_address === "string" ? email.email_address : "";
+    if (address && (primaryEmailId === "" || id === primaryEmailId)) return address;
+  }
+  return null;
+}
+
+async function isAllowedTester(user: ClerkUser): Promise<boolean> {
+  if (isMockAuthEnabled()) return true;
+  const allowedEmails = getAllowedTesterEmails();
+  if (allowedEmails.length === 0) return false;
+  const email = (user.email ?? await getClerkUserEmail(user.id) ?? "").trim().toLowerCase();
+  return email.length > 0 && allowedEmails.includes(email);
+}
+
+async function getAuthenticatedUser(req: Request, body: Record<string, unknown> = {}): Promise<ClerkUser | null> {
+  if (isMockAuthEnabled()) {
+    const mockUserId =
+      typeof body.mock_user_id === "string" && body.mock_user_id.trim()
+        ? body.mock_user_id.trim()
+        : req.headers.get("x-mock-user-id")?.trim() ?? "";
+    return mockUserId ? {
+      id: mockUserId,
+      email: typeof body.mock_email === "string" ? body.mock_email : null,
+    } : null;
+  }
+
+  const authHeader = req.headers.get("authorization") ?? "";
+  const token = authHeader.toLowerCase().startsWith("bearer ") ? authHeader.slice(7).trim() : "";
+  if (!token) return null;
+
+  const clerkJwtKey = Deno.env.get("CLERK_JWT_KEY") ?? "";
+  const clerkSecretKey = Deno.env.get("CLERK_SECRET_KEY") ?? "";
+  if (!clerkJwtKey && !clerkSecretKey) {
+    throw new Error("Missing Clerk token verification configuration");
+  }
+
+  const verifyOptions: any = {
+    jwtKey: clerkJwtKey || undefined,
+    secretKey: clerkSecretKey || undefined,
+  };
+  const authorizedParties = getClerkAuthorizedParties();
+  if (authorizedParties.length > 0) {
+    verifyOptions.authorizedParties = authorizedParties;
+  }
+
+  const verifiedToken = await verifyToken(token, verifyOptions);
+  const claims = verifiedToken as Record<string, unknown>;
+  const userId = typeof claims.sub === "string" ? claims.sub : "";
+  return userId ? { id: userId, email: getClaimEmail(claims) } : null;
 }
 
 function normalizeInputUrl(raw: string): string | null {
@@ -2235,6 +2350,35 @@ serve(async (req: Request) => {
       auth: { persistSession: false },
     });
 
+    const featureFlagRes = await supabase
+      .from("site_feature_flags")
+      .select("enabled")
+      .eq("key", "investigation_credits")
+      .maybeSingle();
+    if (featureFlagRes.error) {
+      logError(requestId, "db.feature_flag.error", {
+        error: featureFlagRes.error,
+      });
+      return respond(500, {
+        error: "Database error loading feature flag.",
+        details: featureFlagRes.error.message,
+        request_id: requestId,
+      });
+    }
+
+    const investigationCreditsEnabled = parseBooleanSetting(featureFlagRes.data?.enabled, false);
+    let authenticatedUser: ClerkUser | null = null;
+    if (investigationCreditsEnabled) {
+      authenticatedUser = await getAuthenticatedUser(req, body as Record<string, unknown>);
+      if (authenticatedUser != null && !(await isAllowedTester(authenticatedUser))) {
+        return respond(403, {
+          error: "under_construction",
+          request_id: requestId,
+          feature_flag: "investigation_credits",
+        });
+      }
+    }
+
     logInfo(requestId, "db.site_lookup.start", {
       site_domain: siteDomain,
     });
@@ -2359,13 +2503,29 @@ serve(async (req: Request) => {
       });
     }
 
+    if (investigationCreditsEnabled && wasInserted && authenticatedUser == null) {
+      await supabase
+        .from("article_queue")
+        .delete()
+        .eq("id", queueId);
+
+      return respond(401, {
+        error: "Sign in required to start a new investigation.",
+        request_id: requestId,
+        feature_flag: "investigation_credits",
+      });
+    }
+
     const queueStatus =
       queueRow && typeof queueRow.status === "string" ? queueRow.status : null;
 
     const alreadyRequested =
       queueRow !== null && queueRow.remote_requested_at !== null;
 
-    if (!wasInserted) {
+    const shouldDispatchExistingQueued =
+      !wasInserted && queueStatus === "queued" && !alreadyRequested;
+
+    if (!wasInserted && !shouldDispatchExistingQueued) {
       logInfo(requestId, "queue.duplicate_existing", {
         queue_id: queueId,
         queue_status: queueStatus,
@@ -2384,6 +2544,56 @@ serve(async (req: Request) => {
         message: "URL already exists in article_queue",
         skip_fly: true,
       });
+    }
+
+    if (shouldDispatchExistingQueued) {
+      logInfo(requestId, "queue.duplicate_existing_dispatchable", {
+        queue_id: queueId,
+        queue_status: queueStatus,
+        already_requested: alreadyRequested,
+      });
+    }
+
+    if (investigationCreditsEnabled && wasInserted && authenticatedUser != null) {
+      const fundRes = await supabase.rpc("fund_article_investigation", {
+        p_queue_id: queueId,
+        p_user_id: authenticatedUser.id,
+        p_is_starter: true,
+      });
+      if (fundRes.error) {
+        await supabase
+          .from("article_queue")
+          .update({
+            status: "failed",
+            funding_status: "needs_funding",
+            needs_funding_at: new Date().toISOString(),
+          })
+          .eq("id", queueId);
+        return respond(402, {
+          error: "Could not fund this investigation.",
+          details: fundRes.error.message,
+          request_id: requestId,
+        });
+      }
+
+      const debitRes = await supabase.rpc("debit_article_flat_start_cost", {
+        p_queue_id: queueId,
+      });
+      if (debitRes.error) {
+        await supabase
+          .from("article_queue")
+          .update({
+            status: "paused",
+            funding_status: "needs_funding",
+            needs_funding_at: new Date().toISOString(),
+          })
+          .eq("id", queueId);
+        return respond(402, {
+          error: "Not enough credits to start this investigation.",
+          details: debitRes.error.message,
+          request_id: requestId,
+        });
+      }
     }
 
     logInfo(requestId, "queue.state", {

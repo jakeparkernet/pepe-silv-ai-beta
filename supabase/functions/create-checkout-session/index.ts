@@ -51,6 +51,54 @@ function getClerkAuthorizedParties() {
     .filter(Boolean);
 }
 
+function getAllowedTesterEmails() {
+  return (Deno.env.get("PEPE_ALLOWED_TESTER_EMAILS") ?? "actorjakeparker@gmail.com")
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function getClaimEmail(claims: Record<string, unknown>) {
+  return typeof claims.email === "string"
+    ? claims.email
+    : typeof claims.email_address === "string"
+      ? claims.email_address
+      : null;
+}
+
+async function getClerkUserEmail(userId: string) {
+  const clerkSecretKey = Deno.env.get("CLERK_SECRET_KEY") ?? "";
+  if (!clerkSecretKey) return null;
+
+  const res = await fetch(`https://api.clerk.com/v1/users/${encodeURIComponent(userId)}`, {
+    headers: {
+      "Authorization": `Bearer ${clerkSecretKey}`,
+      "Content-Type": "application/json",
+    },
+  });
+  if (!res.ok) return null;
+
+  const data = await res.json().catch(() => null) as Record<string, unknown> | null;
+  const primaryEmailId = typeof data?.primary_email_address_id === "string" ? data.primary_email_address_id : "";
+  const emailAddresses = Array.isArray(data?.email_addresses) ? data.email_addresses : [];
+  for (const rawEmail of emailAddresses) {
+    if (rawEmail === null || typeof rawEmail !== "object") continue;
+    const email = rawEmail as Record<string, unknown>;
+    const id = typeof email.id === "string" ? email.id : "";
+    const address = typeof email.email_address === "string" ? email.email_address : "";
+    if (address && (primaryEmailId === "" || id === primaryEmailId)) return address;
+  }
+  return null;
+}
+
+async function isAllowedTester(user: ClerkUser) {
+  if (isMockAuthEnabled()) return true;
+  const allowedEmails = getAllowedTesterEmails();
+  if (allowedEmails.length === 0) return false;
+  const email = (user.email ?? await getClerkUserEmail(user.id) ?? "").trim().toLowerCase();
+  return email.length > 0 && allowedEmails.includes(email);
+}
+
 function getPack(raw: unknown) {
   const packId = typeof raw === "string" && raw.trim() ? raw.trim() : "credits_10";
   return {
@@ -59,7 +107,38 @@ function getPack(raw: unknown) {
   };
 }
 
-async function getAuthenticatedUser(req: Request): Promise<ClerkUser | null> {
+function parseBooleanSetting(value: unknown, fallback = false) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["true", "1", "yes", "on"].includes(normalized)) return true;
+    if (["false", "0", "no", "off"].includes(normalized)) return false;
+  }
+  return fallback;
+}
+
+function isMockAuthEnabled() {
+  return (Deno.env.get("PEPE_AUTH_MODE") ?? "").trim().toLowerCase() === "mock";
+}
+
+function isMockPaymentsEnabled() {
+  return (Deno.env.get("PEPE_PAYMENTS_MODE") ?? "").trim().toLowerCase() === "mock";
+}
+
+async function getAuthenticatedUser(req: Request, body: Record<string, unknown>): Promise<ClerkUser | null> {
+  if (isMockAuthEnabled()) {
+    const mockUserId =
+      typeof body.mock_user_id === "string" && body.mock_user_id.trim()
+        ? body.mock_user_id.trim()
+        : req.headers.get("x-mock-user-id")?.trim() ?? "";
+    if (!mockUserId) return null;
+    return {
+      id: mockUserId,
+      email: typeof body.mock_email === "string" ? body.mock_email : null,
+    };
+  }
+
   const authHeader = req.headers.get("authorization") ?? "";
   const token = authHeader.toLowerCase().startsWith("bearer ") ? authHeader.slice(7).trim() : "";
   if (!token) return null;
@@ -81,12 +160,7 @@ async function getAuthenticatedUser(req: Request): Promise<ClerkUser | null> {
   const claims = verifiedToken as Record<string, unknown>;
   const userId = typeof claims.sub === "string" ? claims.sub : "";
   if (!userId) return null;
-  const email =
-    typeof claims.email === "string"
-      ? claims.email
-      : typeof claims.email_address === "string"
-        ? claims.email_address
-        : null;
+  const email = getClaimEmail(claims);
   return { id: userId, email };
 }
 
@@ -103,17 +177,33 @@ serve(async (req) => {
   const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
   const siteUrl = (Deno.env.get("SITE_URL") ?? Deno.env.get("PUBLIC_SITE_URL") ?? "https://pepesilv.ai").replace(/\/+$/, "");
-  if (!supabaseUrl || !serviceRole || !stripeSecretKey) {
+  if (!supabaseUrl || !serviceRole || (!stripeSecretKey && !isMockPaymentsEnabled())) {
     return respond(origin, 500, { ok: false, error: "Missing checkout configuration" });
   }
 
   try {
-    const user = await getAuthenticatedUser(req);
+    const body = await req.json().catch(() => ({})) as Record<string, unknown>;
+    const user = await getAuthenticatedUser(req, body);
     if (!user) {
       return respond(origin, 401, { ok: false, error: "Sign in required" });
     }
+    if (!(await isAllowedTester(user))) {
+      return respond(origin, 403, { ok: false, error: "under_construction" });
+    }
 
-    const body = await req.json().catch(() => ({}));
+    const supabase = createClient(supabaseUrl, serviceRole, { auth: { persistSession: false } });
+    const featureFlag = await supabase
+      .from("site_feature_flags")
+      .select("enabled")
+      .eq("key", "investigation_credits")
+      .maybeSingle();
+    if (featureFlag.error) {
+      return respond(origin, 500, { ok: false, error: featureFlag.error.message });
+    }
+    if (!parseBooleanSetting(featureFlag.data?.enabled, false)) {
+      return respond(origin, 403, { ok: false, error: "Credit purchases are not enabled" });
+    }
+
     const { packId, pack } = getPack(body.pack_id);
     if (!pack) {
       return respond(origin, 400, { ok: false, error: "Unknown credit pack" });
@@ -121,6 +211,43 @@ serve(async (req) => {
     const amountUsd = pack.amountUsd;
     const creditsUsd = pack.creditsUsd;
     const cents = Math.round(amountUsd * 100);
+    if (isMockPaymentsEnabled()) {
+      const mockSessionId = `cs_mock_${crypto.randomUUID()}`;
+      await supabase.from("credit_accounts").upsert({
+        user_id: user.id,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "user_id" });
+      await supabase.from("stripe_checkout_sessions").insert({
+        user_id: user.id,
+        stripe_session_id: mockSessionId,
+        amount_usd: amountUsd,
+        credits_usd: creditsUsd,
+        status: "paid",
+        metadata: {
+          checkout_url: `${siteUrl}/?credits=success&mock_session_id=${encodeURIComponent(mockSessionId)}`,
+          pack_id: packId,
+          mock: true,
+        },
+      });
+      await supabase.from("credit_ledger").insert({
+        user_id: user.id,
+        amount_usd: creditsUsd,
+        entry_type: "purchase",
+        stripe_session_id: mockSessionId,
+        metadata: {
+          pack_id: packId,
+          mock: true,
+        },
+      });
+      return respond(origin, 200, {
+        ok: true,
+        checkout_url: `${siteUrl}/?credits=success&mock_session_id=${encodeURIComponent(mockSessionId)}`,
+        stripe_session_id: mockSessionId,
+        mock: true,
+        credits_usd: creditsUsd,
+      });
+    }
+
     const form = new URLSearchParams();
     form.set("mode", "payment");
     form.set("success_url", `${siteUrl}/?credits=success`);
@@ -155,7 +282,6 @@ serve(async (req) => {
       });
     }
 
-    const supabase = createClient(supabaseUrl, serviceRole, { auth: { persistSession: false } });
     await supabase.from("stripe_checkout_sessions").insert({
       user_id: user.id,
       stripe_session_id: stripeJson.id,
