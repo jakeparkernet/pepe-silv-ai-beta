@@ -24,6 +24,14 @@ insert into public.settings(key, value)
 values ('investigation_start_flat_cost_usd', '0.05')
 on conflict (key) do nothing;
 
+insert into public.settings(key, value)
+values ('company_pair_minimum_credit_usd', '0.05')
+on conflict (key) do nothing;
+
+insert into public.settings(key, value)
+values ('company_pair_max_owner_depth', '50')
+on conflict (key) do nothing;
+
 create table if not exists public.user_account_preferences (
     user_id text primary key,
     email_notifications_enabled boolean not null default true,
@@ -580,7 +588,10 @@ begin
         raise exception 'starter user is required';
     end if;
 
-    v_cost := public.get_money_setting('investigation_start_flat_cost_usd', 0.05);
+    v_cost := public.get_money_setting(
+        'company_pair_minimum_credit_usd',
+        public.get_money_setting('investigation_start_flat_cost_usd', 0.05)
+    );
     if v_cost <= 0 then
         return 0;
     end if;

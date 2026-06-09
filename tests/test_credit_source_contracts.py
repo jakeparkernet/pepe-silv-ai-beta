@@ -37,6 +37,8 @@ class CreditSourceContractTests(unittest.TestCase):
             "create table if not exists public.site_feature_flags",
             "'investigation_credits',\n    false",
             "values ('investigation_start_flat_cost_usd', '0.05')",
+            "values ('company_pair_minimum_credit_usd', '0.05')",
+            "values ('company_pair_max_owner_depth', '50')",
             "create table if not exists public.user_account_preferences",
             "create table if not exists public.user_notification_outbox",
             "create table if not exists public.article_investigation_funders",
@@ -186,6 +188,8 @@ class CreditSourceContractTests(unittest.TestCase):
             'action === "update_preferences"',
             'action === "fund_article"',
             'action === "opt_out_article"',
+            'action === "fund_company_pair"',
+            'action === "opt_out_company_pair"',
             'supabase.rpc("get_credit_balance"',
         ]:
             with self.subTest(fragment=fragment):
@@ -237,6 +241,7 @@ class CreditSourceContractTests(unittest.TestCase):
         for function_name, source_path in [
             ("create-checkout-session", "create-checkout-session.ts"),
             ("credit-account", "credit-account.ts"),
+            ("company-pair-research-start", "company-pair-research-start.ts"),
             ("stripe-webhook", "stripe-webhook.ts"),
         ]:
             with self.subTest(function=function_name):
@@ -260,6 +265,10 @@ class CreditSourceContractTests(unittest.TestCase):
             "opt-out-funding-button",
             "account-panel",
             "running-cost-display",
+            "investigation-mode-selector",
+            "investigation-mode-company-pair",
+            "company-a-name",
+            "company-b-name",
         ]:
             with self.subTest(fragment=fragment):
                 self.assertIn(fragment, html)
@@ -303,6 +312,8 @@ class CreditSourceContractTests(unittest.TestCase):
             "fundCurrentInvestigation",
             "optOutCurrentFunding",
             "resumeArticleInvestigation",
+            "InvestigationModeController",
+            "investigationModeController?.setSignedIn?.(isSignedIn)",
             "Restarting investigation",
             "updateRunningCostDisplay",
             "creditTesterAuthorized",
@@ -338,6 +349,10 @@ class CreditSourceContractTests(unittest.TestCase):
             "deleteAccount",
             "fundArticleInvestigation",
             "optOutArticleFunding",
+            "fundCompanyPairInvestigation",
+            "optOutCompanyPairFunding",
+            "getCompanyPairRequestById",
+            "resumeCompanyPairInvestigation",
             "resumeArticleInvestigation",
             "isMockAuthMode",
             "getMockAuthBody",
@@ -347,6 +362,7 @@ class CreditSourceContractTests(unittest.TestCase):
                 self.assertIn(fragment, service)
 
         self.assertIn("onPendingArticleState", controller)
+        self.assertIn("handlePendingCompanyPairState", controller)
         self.assertIn('"status": "paused"', states)
 
     def test_backend_completion_paths_pause_when_final_cost_exhausts_credits(self) -> None:

@@ -173,15 +173,6 @@ serve(async (req) => {
       return respond(origin, 401, { ok: false, error: "Sign in required" });
     }
 
-    const companyA = normalizeCompany(body.company_a);
-    const companyB = normalizeCompany(body.company_b);
-    if (!companyA || !companyB) {
-      return respond(origin, 400, { ok: false, error: "company_a.name and company_b.name are required" });
-    }
-    if (companyA.name.toLowerCase() === companyB.name.toLowerCase()) {
-      return respond(origin, 400, { ok: false, error: "company_a.name and company_b.name must be different" });
-    }
-
     const supabase = createClient(supabaseUrl, serviceRole, { auth: { persistSession: false } });
     const featureFlag = await supabase
       .from("site_feature_flags")
@@ -192,6 +183,66 @@ serve(async (req) => {
       return respond(origin, 500, { ok: false, error: featureFlag.error.message });
     }
     const investigationCreditsEnabled = parseBooleanSetting(featureFlag.data?.enabled, false);
+
+    const resumeRequestId = typeof body.request_id === "string" ? body.request_id.trim() : "";
+    if (resumeRequestId) {
+      const requestLookup = await supabase
+        .from("company_pair_requests")
+        .select("*")
+        .eq("id", resumeRequestId)
+        .maybeSingle();
+      if (requestLookup.error) {
+        return respond(origin, 500, { ok: false, error: requestLookup.error.message });
+      }
+      if (!requestLookup.data) {
+        return respond(origin, 404, { ok: false, error: "Company pair request not found" });
+      }
+
+      const isStarter = requestLookup.data.user_id === user.id;
+      const funderLookup = await supabase
+        .from("company_pair_investigation_funders")
+        .select("id")
+        .eq("request_id", resumeRequestId)
+        .eq("user_id", user.id)
+        .eq("status", "funding")
+        .maybeSingle();
+      if (funderLookup.error) {
+        return respond(origin, 500, { ok: false, error: funderLookup.error.message });
+      }
+      if (!isStarter && !funderLookup.data) {
+        return respond(origin, 403, { ok: false, error: "You must fund this investigation before resuming it" });
+      }
+
+      const startRes = await safeFetchJson(`${supabaseUrl}/functions/v1/investigation_start`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${serviceRole}`,
+          "x-internal-key": internalEdgeApiKey,
+        },
+        body: JSON.stringify({
+          company_pair_request_id: resumeRequestId,
+        }),
+      });
+
+      const dispatchOk = startRes.bodyJson?.dispatch_result?.ok === true;
+      return respond(origin, startRes.ok && dispatchOk ? 200 : 500, {
+        ok: startRes.ok && dispatchOk,
+        request_id: resumeRequestId,
+        shared_funding_enabled: investigationCreditsEnabled,
+        dispatch_result: startRes.bodyJson,
+        request: startRes.bodyJson?.company_pair_request ?? requestLookup.data,
+      });
+    }
+
+    const companyA = normalizeCompany(body.company_a);
+    const companyB = normalizeCompany(body.company_b);
+    if (!companyA || !companyB) {
+      return respond(origin, 400, { ok: false, error: "company_a.name and company_b.name are required" });
+    }
+    if (companyA.name.toLowerCase() === companyB.name.toLowerCase()) {
+      return respond(origin, 400, { ok: false, error: "company_a.name and company_b.name must be different" });
+    }
 
     const requestInsert = await supabase
       .from("company_pair_requests")
@@ -321,6 +372,15 @@ serve(async (req) => {
       });
     }
 
+    const latestRequest = await supabase
+      .from("company_pair_requests")
+      .select("*")
+      .eq("id", requestRow.id)
+      .maybeSingle();
+    if (latestRequest.error) {
+      return respond(origin, 500, { ok: false, error: latestRequest.error.message });
+    }
+
     return respond(origin, 200, {
       ok: true,
       request_id: requestRow.id,
@@ -328,6 +388,7 @@ serve(async (req) => {
       reserved_amount_usd: reservedAmountUsd,
       shared_funding_enabled: investigationCreditsEnabled,
       dispatch_result: startRes.bodyJson,
+      request: latestRequest.data ?? requestRow,
     });
   } catch (error) {
     return respond(origin, 500, {

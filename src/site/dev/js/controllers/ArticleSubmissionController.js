@@ -75,6 +75,8 @@ export class ArticleSubmissionController {
             parseJsonRecursively: api.parseJsonRecursively ?? ((value) => value),
             lookupCompanyPair: api.lookupCompanyPair ?? null,
             startCompanyPairResearch: api.startCompanyPairResearch ?? null,
+            getCompanyPairRequestById: api.getCompanyPairRequestById ?? null,
+            buildCompanyPairArticleObjectFromRequest: api.buildCompanyPairArticleObjectFromRequest ?? null,
             createCheckoutSession: api.createCheckoutSession ?? null,
             buyCredits: api.buyCredits ?? null,
             getCurrentUser: api.getCurrentUser ?? null,
@@ -1084,12 +1086,134 @@ export class ArticleSubmissionController {
             return false;
         }
 
+        let request = result?.data?.request ?? result?.data?.dispatch_result?.company_pair_request ?? null;
+        let requestId = result?.data?.request_id ?? request?.id ?? null;
         this.showSubmitStatusMessage("Research requested. Check back soon for the ownership tree.");
         if (this.dom.companyPairResearchActions != null) {
             this.dom.companyPairResearchActions.hidden = false;
         }
         this.setSubmitInteractionLocked(false);
+        if (requestId != null) {
+            await this.handlePendingCompanyPairState(
+                request ?? {
+                    id: requestId,
+                    status: "queued",
+                    company_a_name: payload.company_a.name,
+                    company_b_name: payload.company_b.name
+                }
+            );
+        }
         return true;
+    }
+
+    buildPendingCompanyPairArticleObject(requestRow) {
+        let request = this.api.parseJsonRecursively(requestRow ?? {});
+        let companyAName = request.company_a_name ?? "Company A";
+        let companyBName = request.company_b_name ?? "Company B";
+
+        return {
+            article: {
+                ...request,
+                id: request.id,
+                url: `${companyAName} / ${companyBName}`,
+                mode: "company_pair",
+                status: request.status,
+                started_by_user_id: request.user_id ?? null,
+                ownership_tree_id: request.ownership_tree_id ?? null,
+                funding_status: request.funding_status ?? "not_required",
+                openrouter_cost: request.openrouter_cost ?? 0,
+                fly_io_investigation_cost: request.fly_io_investigation_cost ?? 0,
+                flat_start_cost_usd: request.flat_start_cost_usd ?? 0,
+                remote_requested_at: request.remote_requested_at ?? null,
+                started_at: request.started_at ?? null,
+                created_at: request.created_at ?? null
+            },
+            company_pair_request: request,
+            ownershipTreeObj: null,
+            ownership_tree: null
+        };
+    }
+
+    getCompanyPairStatusMessage(articleObject) {
+        let article = articleObject?.article ?? {};
+        let status = String(article.status ?? "").toLowerCase();
+
+        if (article.ownership_tree_id) {
+            return "Ownership tree found.";
+        }
+        if (article.funding_status === "needs_funding" || status === "paused") {
+            return "This company investigation needs more funding before it can continue.";
+        }
+        if (status === "queued") {
+            return "This company investigation is queued for research.";
+        }
+        if (status === "in-progress") {
+            return "This company investigation is currently being researched.";
+        }
+        if (status === "failed") {
+            return "Company investigation failed, come back later.";
+        }
+        if (status.length > 0) {
+            return `This company investigation is being researched. Status: ${article.status}`;
+        }
+
+        return "This company investigation is being researched.";
+    }
+
+    async handlePendingCompanyPairState(requestRow) {
+        let articleObject = this.buildPendingCompanyPairArticleObject(requestRow);
+        this.setForegroundSearchVisible(false);
+        this.showForeground();
+        this.applyArticleStatusCameraZoom();
+        this.showSubmitStatusMessage(this.getCompanyPairStatusMessage(articleObject));
+        callMaybe(this.callbacks.onPendingArticleState, articleObject);
+        await this.updateArticleStatusProgress(articleObject);
+        this.pollCompanyPairStatus(articleObject.article.id);
+        return true;
+    }
+
+    async pollCompanyPairStatus(requestId) {
+        let token = ++this.articleStatusPollToken;
+        let pollDelayMs = this.submitStatusPollDelayMs;
+
+        while (token === this.articleStatusPollToken) {
+            await this.wait(pollDelayMs);
+            if (token !== this.articleStatusPollToken) {
+                return;
+            }
+
+            let requestResult = await this.api.getCompanyPairRequestById?.(requestId);
+            if (requestResult?.error || requestResult?.data == null) {
+                continue;
+            }
+
+            let articleObject = this.buildPendingCompanyPairArticleObject(requestResult.data);
+            this.showSubmitStatusMessage(this.getCompanyPairStatusMessage(articleObject));
+            callMaybe(this.callbacks.onPendingArticleState, articleObject);
+            await this.updateArticleStatusProgress(articleObject);
+
+            let status = String(articleObject.article?.status ?? "").toLowerCase();
+            if (articleObject.article?.ownership_tree_id != null) {
+                let ownershipTreeObj = await this.api.fetchOwnershipTreeById?.(articleObject.article.ownership_tree_id);
+                let resolvedArticle = this.api.buildCompanyPairArticleObjectFromRequest?.(
+                    requestResult.data,
+                    ownershipTreeObj
+                );
+                if (resolvedArticle != null) {
+                    await this.renderResolvedArticle(resolvedArticle, {
+                        source: "company-pair-poll",
+                        targetUrl: null
+                    });
+                }
+                return;
+            }
+
+            if (status === "failed" || status === "cancelled") {
+                this.setForegroundSearchVisible(true);
+                this.setSubmitInteractionLocked(false);
+                return;
+            }
+        }
     }
 
     async onBuyCreditsClicked(event) {

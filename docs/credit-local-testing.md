@@ -52,7 +52,6 @@ window.PEPE_DEFAULT_BASE_URL = "http://127.0.0.1:55421/functions/v1";
 window.PEPE_CLERK_PUBLISHABLE_KEY = "<clerk publishable key>";
 window.PEPE_CLERK_FRONTEND_API_URL = ""; // optional; derived from the publishable key
 window.PEPE_BUILD_COMMIT_HASH = "";
-window.PEPE_COMPANY_PAIR_URL_INPUT_ENABLED = false;
 ```
 
 Open `http://127.0.0.1:3000`. Signed-in users see their credit balance, `Buy
@@ -155,6 +154,7 @@ Run the local verification suite before deploying:
 .venv/bin/python -m unittest tests/test_credit_funding.py tests/test_credit_source_contracts.py
 node --check src/site/dev/js/app.js
 node --check src/site/dev/js/services/ArticleApiService.js
+node --check src/site/dev/js/controllers/InvestigationModeController.js
 node --check src/site/dev/js/controllers/ArticleSubmissionController.js
 supabase db lint --local --fail-on error
 git diff --check

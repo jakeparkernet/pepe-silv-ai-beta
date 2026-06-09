@@ -7,7 +7,7 @@ import signal
 import subprocess
 import time as time_module
 from datetime import datetime
-from typing import Any, Dict, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from pydantic import PrivateAttr
 
@@ -16,7 +16,7 @@ from app.core.db.models import Entity
 from app.core.jobs.job import Job
 from app.core.jobs.job_status import JobStatus
 from app.core.jobs.openrouter_cost import InvestigationFundingPaused, OpenrouterCost, _send_funding_notices
-from app.util.common_owner_frontier import serialize_common_owner_results
+from app.util.common_owner_frontier import COMMON_OWNER_RULESET, serialize_common_owner_results
 from app.util.get_value_safe import get_value_safe
 from app.util.markers import returns_awaitable
 
@@ -91,8 +91,14 @@ class CompanyPairInvestigation(Job):
     _credit_feature_enabled: bool = PrivateAttr(default=False)
     _start_time: float = PrivateAttr(default=0.0)
     _fly_io_cost_per_second: float = PrivateAttr(default=0.00001196)
+    _max_depth: int = PrivateAttr(default=50)
     _entities: Dict[str, Entity] = PrivateAttr(default_factory=dict)
     _tree_outputs: Dict[str, Dict[str, Any]] = PrivateAttr(default_factory=dict)
+    _search_sides: Dict[str, Dict[str, Any]] = PrivateAttr(default_factory=dict)
+    _next_expansion_side: str = PrivateAttr(default="a")
+    _active_level_side: Optional[str] = PrivateAttr(default=None)
+    _active_level_ids: List[str] = PrivateAttr(default_factory=list)
+    _active_level_index: int = PrivateAttr(default=0)
 
     async def run(self, platform: str):
         await super().run(platform)
@@ -109,6 +115,7 @@ class CompanyPairInvestigation(Job):
         try:
             self._credit_feature_enabled = self._is_feature_enabled("investigation_credits", False)
             self._fly_io_cost_per_second = self._get_money_setting("fly_io_cost_per_second", 0.00001196)
+            self._max_depth = self._get_int_setting("company_pair_max_owner_depth", 50)
             self._mark_request({
                 "status": "in-progress",
                 "started_at": datetime.now().isoformat(),
@@ -138,6 +145,19 @@ class CompanyPairInvestigation(Job):
             return parsed if parsed >= 0 else fallback
         except Exception:
             logger.warning("Failed to read money setting %s", key, exc_info=True)
+            return fallback
+
+    def _get_int_setting(self, key: str, fallback: int) -> int:
+        try:
+            supabase = _get_supabase_service_client()
+            res = supabase.table("settings").select("value").eq("key", key).limit(1).execute()
+            row = (res.data or [None])[0]
+            if row is None:
+                return fallback
+            parsed = int(row.get("value"))
+            return parsed if parsed > 0 else fallback
+        except Exception:
+            logger.warning("Failed to read integer setting %s", key, exc_info=True)
             return fallback
 
     def _is_feature_enabled(self, key: str, fallback: bool = False) -> bool:
@@ -220,9 +240,294 @@ class CompanyPairInvestigation(Job):
                 self._resolve_entity("b")
                 return
 
-            self._build_tree("a")
+            self._start_frontier_search()
         except Exception as exc:
             self._fail_request(str(exc))
+
+    def _start_frontier_search(self) -> None:
+        entity_a = self._entities.get("a")
+        entity_b = self._entities.get("b")
+        if entity_a is None or entity_b is None:
+            self._fail_request("Both entities must resolve before common-owner search")
+            return
+
+        self._search_sides = {
+            "a": self._make_search_side(entity_a),
+            "b": self._make_search_side(entity_b),
+        }
+        self._next_expansion_side = "a"
+        self._continue_frontier_search()
+
+    def _make_search_side(self, root_entity: Entity) -> Dict[str, Any]:
+        root_id = str(root_entity.id)
+        return {
+            "root_entity": root_entity,
+            "root_id": root_id,
+            "seen": {root_id},
+            "distance": {root_id: 0},
+            "entities": {root_id: root_entity},
+            "relationships": {},
+            "parent": {},
+            "frontier": [root_id],
+        }
+
+    def _continue_frontier_search(self) -> None:
+        terminal_common_ids = self._find_terminal_common_ids()
+        if terminal_common_ids:
+            self._finalize_from_frontier(terminal_common_ids, exhausted=False)
+            return
+
+        if not self._side_has_frontier("a") and not self._side_has_frontier("b"):
+            self._finalize_from_frontier(set(), exhausted=True)
+            return
+
+        side = self._next_expansion_side
+        if not self._side_has_frontier(side):
+            side = "b" if side == "a" else "a"
+        self._expand_side_level(side)
+
+    def _side_has_frontier(self, side: str) -> bool:
+        return len(self._search_sides.get(side, {}).get("frontier") or []) > 0
+
+    def _expand_side_level(self, side: str) -> None:
+        search_side = self._search_sides.get(side)
+        if not search_side:
+            self._fail_request(f"Missing search side {side}")
+            return
+
+        self._active_level_side = side
+        self._active_level_ids = list(search_side.get("frontier") or [])
+        self._active_level_index = 0
+        search_side["frontier"] = []
+        self._process_next_level_entity()
+
+    def _process_next_level_entity(self) -> None:
+        side = self._active_level_side
+        if side is None:
+            self._continue_frontier_search()
+            return
+
+        search_side = self._search_sides.get(side)
+        if not search_side:
+            self._fail_request(f"Missing active search side {side}")
+            return
+
+        while self._active_level_index < len(self._active_level_ids):
+            entity_id = self._active_level_ids[self._active_level_index]
+            self._active_level_index += 1
+
+            depth = int(search_side.get("distance", {}).get(entity_id, 0))
+            if depth >= self._max_depth:
+                continue
+
+            entity = search_side.get("entities", {}).get(entity_id)
+            if entity is None:
+                continue
+            if bool(getattr(entity, "top_dog", False)) and entity_id != search_side.get("root_id"):
+                continue
+
+            spec = {
+                "type": "find_owners_llm",
+                "params": {
+                    "parent_id": self.id,
+                    "input": {
+                        "entity": entity.to_serializeable_object(),
+                    },
+                    "metadata": {
+                        "view_data": {
+                            "note": f"expand company {side.upper()} owner frontier",
+                            "nodeType": "find_owners",
+                        }
+                    },
+                },
+            }
+
+            self.create_child_job(
+                child_label=f"expand_company_{side}_owner_frontier_{entity_id}",
+                spec=spec,
+                on_complete=self.on_frontier_owners_found_wrapper(side, entity_id),
+            )
+            return
+
+        self._complete_side_level(side)
+
+    def on_frontier_owners_found_wrapper(self, side: str, entity_id: str):
+        @returns_awaitable
+        def _wrapper(job):
+            return self.on_frontier_owners_found(side, entity_id, job)
+
+        return _wrapper
+
+    async def on_frontier_owners_found(self, side: str, entity_id: str, job):
+        try:
+            await self._record_frontier_owner_results(side, entity_id, get_value_safe(job, "output", {}) or {})
+            if self._update_costs_and_pause_if_needed():
+                return
+            self._process_next_level_entity()
+        except Exception as exc:
+            self._fail_request(str(exc))
+
+    async def _record_frontier_owner_results(self, side: str, entity_id: str, owners_output: Dict[str, Any]) -> None:
+        search_side = self._search_sides.get(side)
+        if not search_side:
+            return
+
+        owner_entities_by_id: Dict[str, Entity] = {}
+        for entity_raw in owners_output.get("entities", []) or []:
+            owner_entity = _entity_from_any(entity_raw)
+            if owner_entity is None or owner_entity.entity_type != "ORG" or not owner_entity.id:
+                continue
+            owner_entities_by_id[owner_entity.id] = owner_entity
+
+        service = DatabaseService.get()
+        for relationship_raw in owners_output.get("relationships", []) or []:
+            source_id = self._get_relationship_source_id(relationship_raw)
+            target_id = self._get_relationship_target_id(relationship_raw)
+            relationship_id = self._get_relationship_id(relationship_raw)
+
+            if not source_id or not target_id or target_id != entity_id:
+                continue
+            if relationship_id:
+                search_side["relationships"][relationship_id] = relationship_raw
+            if source_id in search_side["seen"]:
+                continue
+
+            owner_entity = owner_entities_by_id.get(source_id)
+            if owner_entity is None:
+                owner_entity = await service.get_entity(source_id)
+            if owner_entity is None or owner_entity.entity_type != "ORG":
+                continue
+
+            search_side["seen"].add(source_id)
+            search_side["distance"][source_id] = int(search_side["distance"].get(entity_id, 0)) + 1
+            search_side["entities"][source_id] = owner_entity
+            search_side["parent"][source_id] = (entity_id, relationship_raw)
+            search_side["frontier"].append(source_id)
+
+    def _complete_side_level(self, side: str) -> None:
+        self._active_level_side = None
+        self._active_level_ids = []
+        self._active_level_index = 0
+
+        terminal_common_ids = self._find_terminal_common_ids()
+        if terminal_common_ids:
+            self._finalize_from_frontier(terminal_common_ids, exhausted=False)
+            return
+
+        self._next_expansion_side = "b" if side == "a" else "a"
+        self._continue_frontier_search()
+
+    def _find_terminal_common_ids(self) -> Set[str]:
+        side_a = self._search_sides.get("a") or {}
+        side_b = self._search_sides.get("b") or {}
+        seen_a = set(side_a.get("seen") or set())
+        seen_b = set(side_b.get("seen") or set())
+        root_a = side_a.get("root_id")
+        root_b = side_b.get("root_id")
+        return (seen_a - {root_a}) & (seen_b - {root_b})
+
+    def _get_relationship_id(self, relationship: Any) -> Optional[str]:
+        relationship_id = get_value_safe(relationship, "id", None)
+        return str(relationship_id) if relationship_id else None
+
+    def _get_relationship_source_id(self, relationship: Any) -> Optional[str]:
+        source_id = get_value_safe(relationship, "source_entity_id", None) or get_value_safe(relationship, "source", None)
+        return str(source_id) if source_id else None
+
+    def _get_relationship_target_id(self, relationship: Any) -> Optional[str]:
+        target_id = get_value_safe(relationship, "target_entity_id", None) or get_value_safe(relationship, "target", None)
+        return str(target_id) if target_id else None
+
+    def _path_ids_to_root(self, search_side: Dict[str, Any], owner_id: str) -> Tuple[Set[str], Dict[str, Any]]:
+        entity_ids: Set[str] = set()
+        relationships: Dict[str, Any] = {}
+        current_id = owner_id
+        root_id = search_side.get("root_id")
+
+        while current_id != root_id:
+            parent_info = search_side.get("parent", {}).get(current_id)
+            if parent_info is None:
+                break
+            child_id, relationship = parent_info
+            entity_ids.add(current_id)
+            relationship_id = self._get_relationship_id(relationship)
+            if relationship_id:
+                relationships[relationship_id] = relationship
+            current_id = child_id
+
+        return entity_ids, relationships
+
+    def _build_side_tree(self, side: str, terminal_common_ids: Set[str]) -> Dict[str, Any]:
+        search_side = self._search_sides.get(side) or {}
+        owner_entities: Dict[str, Any] = {}
+        relationships: Dict[str, Any] = {}
+        root_id = search_side.get("root_id")
+
+        if terminal_common_ids:
+            for common_id in terminal_common_ids:
+                path_entity_ids, path_relationships = self._path_ids_to_root(search_side, common_id)
+                for entity_id in path_entity_ids:
+                    if entity_id != root_id and entity_id in search_side.get("entities", {}):
+                        owner_entities[entity_id] = search_side["entities"][entity_id]
+                relationships.update(path_relationships)
+        else:
+            for entity_id, entity in (search_side.get("entities") or {}).items():
+                if entity_id != root_id:
+                    owner_entities[entity_id] = entity
+            relationships.update(search_side.get("relationships") or {})
+
+        return {
+            "target_entity": search_side.get("root_entity"),
+            "owner_entities": owner_entities,
+            "relationships": relationships,
+        }
+
+    def _finalize_from_frontier(self, terminal_common_ids: Set[str], exhausted: bool) -> None:
+        common_owner_results = self._serialize_frontier_results(terminal_common_ids, exhausted)
+        asyncio.create_task(self._finalize(common_owner_results))
+
+    def _serialize_frontier_results(self, terminal_common_ids: Set[str], exhausted: bool) -> Dict[str, Any]:
+        entity_a = self._entities.get("a")
+        entity_b = self._entities.get("b")
+        a_tree = self._build_side_tree("a", terminal_common_ids)
+        b_tree = self._build_side_tree("b", terminal_common_ids)
+
+        relationships = dict(a_tree.get("relationships") or {})
+        relationships.update(b_tree.get("relationships") or {})
+        owner_entities = dict(a_tree.get("owner_entities") or {})
+        owner_entities.update(b_tree.get("owner_entities") or {})
+        common_owners = {
+            owner_id: owner_entities[owner_id]
+            for owner_id in terminal_common_ids
+            if owner_id in owner_entities
+        }
+
+        results = {
+            "entity_a": entity_a,
+            "entity_b": entity_b,
+            "a_ownership_tree": a_tree,
+            "b_ownership_tree": b_tree,
+            "relationships": relationships,
+            "owner_entities": owner_entities,
+            "common_owners": common_owners,
+            "metadata": {
+                "common_owner_ruleset": COMMON_OWNER_RULESET,
+                "common_owner_strategy": "paired owner frontier; terminal common owners are not expanded",
+                "max_depth": self._max_depth,
+                "terminal_common_owner_ids": sorted(terminal_common_ids),
+                "terminal_depth_a": min(
+                    [self._search_sides["a"]["distance"].get(owner_id, self._max_depth + 1) for owner_id in terminal_common_ids],
+                    default=None,
+                ),
+                "terminal_depth_b": min(
+                    [self._search_sides["b"]["distance"].get(owner_id, self._max_depth + 1) for owner_id in terminal_common_ids],
+                    default=None,
+                ),
+                "exhausted": exhausted,
+                "created_at": datetime.now().isoformat(),
+            },
+        }
+        return serialize_common_owner_results(results)
 
     def _build_tree(self, side: str) -> None:
         entity = self._entities.get(side)
@@ -269,11 +574,19 @@ class CompanyPairInvestigation(Job):
                 self._build_tree("b")
                 return
 
-            await self._finalize()
+            service = DatabaseService.get()
+            common_owner_results = serialize_common_owner_results(
+                await service.find_common_owners_between_entities(
+                    self._entities.get("a"),
+                    self._entities.get("b"),
+                    max_depth=self._max_depth,
+                )
+            )
+            await self._finalize(common_owner_results)
         except Exception as exc:
             self._fail_request(str(exc))
 
-    async def _finalize(self):
+    async def _finalize(self, common_owner_results: Dict[str, Any]):
         service = DatabaseService.get()
         entity_a = self._entities.get("a")
         entity_b = self._entities.get("b")
@@ -281,8 +594,6 @@ class CompanyPairInvestigation(Job):
             self._fail_request("Both entities must be resolved before finalizing")
             return
 
-        common_owner_data = await service.find_common_owners_between_entities(entity_a, entity_b)
-        common_owner_results = serialize_common_owner_results(common_owner_data)
         common_owners = common_owner_results.get("common_owners") or {}
         top_owner = next(iter(common_owners.values()), None)
 
@@ -392,12 +703,15 @@ class CompanyPairInvestigation(Job):
         openrouter_cost = float(OpenrouterCost.get_instance().get_cost() or 0)
         runtime_seconds = max(0, time_module.time() - self._start_time)
         fly_cost = runtime_seconds * self._fly_io_cost_per_second
-        markup = self._get_money_setting("company_pair_markup_usd", 2.0)
-        total = openrouter_cost + fly_cost + markup
+        minimum = self._get_money_setting(
+            "company_pair_minimum_credit_usd",
+            self._get_money_setting("investigation_start_flat_cost_usd", 0.05),
+        )
+        total = openrouter_cost + fly_cost + minimum
         return {
             "openrouter_cost": openrouter_cost,
             "fly_io_investigation_cost": fly_cost,
-            "markup_cost": markup,
+            "markup_cost": minimum,
             "total_cost": total,
             "runtime_seconds": runtime_seconds,
         }

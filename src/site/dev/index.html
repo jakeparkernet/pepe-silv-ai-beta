@@ -142,25 +142,34 @@
     <div id="foreground" style="display: block;">
         <div id="mobile-bottom-shell">
             <form id="url-input-container" novalidate>
+                <fieldset id="investigation-mode-selector" class="investigation-mode-selector" hidden>
+                    <legend class="investigation-mode-legend">Investigation type</legend>
+                    <label class="investigation-mode-option">
+                        <input id="investigation-mode-article" type="radio" name="investigation-mode" value="article" checked>
+                        <span>Investigate article</span>
+                    </label>
+                    <label class="investigation-mode-option">
+                        <input id="investigation-mode-company-pair" type="radio" name="investigation-mode" value="company_pair">
+                        <span>Compare companies</span>
+                    </label>
+                </fieldset>
                 <input id="url-input" placeholder="Enter the URL of a news article to scan for financial conflicts."
                     type="text" autocomplete="off"></input>
                 <div id="company-pair-input-container" hidden>
                     <section class="company-pair-input-section" aria-label="First company">
                         <label for="company-a-name">Company A</label>
                         <input id="company-a-name" class="company-pair-name-input" type="text" autocomplete="off" placeholder="Company name">
-                        <textarea id="company-a-context" class="company-pair-context-input" rows="3" placeholder="Optional context or URL"></textarea>
                     </section>
                     <section class="company-pair-input-section" aria-label="Second company">
                         <label for="company-b-name">Company B</label>
                         <input id="company-b-name" class="company-pair-name-input" type="text" autocomplete="off" placeholder="Company name">
-                        <textarea id="company-b-context" class="company-pair-context-input" rows="3" placeholder="Optional context or URL"></textarea>
                     </section>
                 </div>
                 <div id="url-submit-button-container">
                     <div id="url-submit-button" role="button" tabindex="0" aria-label="Submit URL"></div>
                 </div>
                 <div id="company-pair-actions" hidden>
-                    <button id="company-pair-submit-button" type="button">Find Common Influence</button>
+                    <button id="company-pair-submit-button" type="button">Find Financial Links</button>
                     <div id="company-pair-research-actions" hidden>
                         <button id="company-pair-research-button" type="button">Request Research</button>
                         <button id="company-pair-buy-credits-button" type="button">Buy Credits</button>

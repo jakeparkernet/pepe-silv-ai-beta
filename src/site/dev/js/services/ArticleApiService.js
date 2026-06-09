@@ -708,6 +708,33 @@ class ArticleApiService {
         };
     }
 
+    buildCompanyPairArticleObjectFromRequest(requestRow, ownershipTreeObj) {
+        const request = this.parseJsonRecursively(requestRow ?? {});
+        const tree = this.parseJsonRecursively(ownershipTreeObj ?? null);
+        if (request == null || tree == null) {
+            return null;
+        }
+
+        return this.buildCompanyPairArticleObject({
+            company_pair_request_id: request.id,
+            company_a: {
+                name: request.company_a_name ?? "",
+                context: request.company_a_context ?? ""
+            },
+            company_b: {
+                name: request.company_b_name ?? "",
+                context: request.company_b_context ?? ""
+            },
+            company_a_entity: request.company_a_entity_id != null
+                ? { id: request.company_a_entity_id, name: request.company_a_name ?? "Company A" }
+                : null,
+            company_b_entity: request.company_b_entity_id != null
+                ? { id: request.company_b_entity_id, name: request.company_b_name ?? "Company B" }
+                : null,
+            ownership_tree_row: tree
+        });
+    }
+
     async lookupCompanyPair(payload, supabase = this.getAuthenticatedSupabaseClient()) {
         const { data, error } = await supabase.functions.invoke("company-pair-lookup", {
             body: payload
@@ -931,6 +958,91 @@ class ArticleApiService {
         });
         return {
             data,
+            error
+        };
+    }
+
+    async fundCompanyPairInvestigation(requestId, supabase = this.getAuthenticatedSupabaseClient()) {
+        const { data: userData, error: userError } = await this.getCurrentUser();
+        if (userError) {
+            return { data: null, error: userError };
+        }
+
+        const user = userData?.user ?? null;
+        if (user == null) {
+            return { data: null, error: new Error("Sign in required") };
+        }
+
+        const { data, error } = await supabase.functions.invoke("credit-account", {
+            body: {
+                action: "fund_company_pair",
+                request_id: requestId,
+                ...this.getMockAuthBody()
+            }
+        });
+        return {
+            data: this.parseJsonRecursively(data?.funder ?? null),
+            error
+        };
+    }
+
+    async optOutCompanyPairFunding(requestId, supabase = this.getAuthenticatedSupabaseClient()) {
+        const { data: userData, error: userError } = await this.getCurrentUser();
+        if (userError) {
+            return { data: null, error: userError };
+        }
+
+        const user = userData?.user ?? null;
+        if (user == null) {
+            return { data: null, error: new Error("Sign in required") };
+        }
+
+        const { data, error } = await supabase.functions.invoke("credit-account", {
+            body: {
+                action: "opt_out_company_pair",
+                request_id: requestId,
+                ...this.getMockAuthBody()
+            }
+        });
+        return {
+            data,
+            error
+        };
+    }
+
+    async getCompanyPairRequestById(requestId, supabase = this.getAuthenticatedSupabaseClient()) {
+        const id = String(requestId ?? "").trim();
+        if (!id) {
+            return { data: null, error: new Error("Company pair request id is required") };
+        }
+
+        const { data, error } = await supabase
+            .from("company_pair_requests")
+            .select("*")
+            .eq("id", id)
+            .maybeSingle();
+
+        return {
+            data: this.parseJsonRecursively(data),
+            error
+        };
+    }
+
+    async resumeCompanyPairInvestigation(requestId, supabase = this.getAuthenticatedSupabaseClient()) {
+        const id = String(requestId ?? "").trim();
+        if (!id) {
+            return { data: null, error: new Error("Company pair request id is required") };
+        }
+
+        const { data, error } = await supabase.functions.invoke("company-pair-research-start", {
+            body: {
+                request_id: id,
+                ...this.getMockAuthBody()
+            }
+        });
+
+        return {
+            data: this.parseJsonRecursively(data),
             error
         };
     }

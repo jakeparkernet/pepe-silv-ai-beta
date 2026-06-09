@@ -229,6 +229,27 @@ serve(async (req) => {
       return respond(origin, 200, { ok: true, opted_out: optOut.data });
     }
 
+    if (action === "fund_company_pair") {
+      const requestId = typeof body.request_id === "string" ? body.request_id : "";
+      const fund = await supabase.rpc("fund_company_pair_investigation", {
+        p_request_id: requestId,
+        p_user_id: userId,
+        p_is_starter: false,
+      });
+      if (fund.error) return respond(origin, 500, { ok: false, error: fund.error.message });
+      return respond(origin, 200, { ok: true, funder: fund.data });
+    }
+
+    if (action === "opt_out_company_pair") {
+      const requestId = typeof body.request_id === "string" ? body.request_id : "";
+      const optOut = await supabase.rpc("opt_out_company_pair_funding", {
+        p_request_id: requestId,
+        p_user_id: userId,
+      });
+      if (optOut.error) return respond(origin, 500, { ok: false, error: optOut.error.message });
+      return respond(origin, 200, { ok: true, opted_out: optOut.data });
+    }
+
     return respond(origin, 400, { ok: false, error: "Unknown account action" });
   } catch (error) {
     return respond(origin, 500, {

@@ -35,6 +35,7 @@ let DetailPanelController;
 let SummaryBannerController;
 let DebugController;
 let ArticleSubmissionController;
+let InvestigationModeController;
 let RecentLinksController;
 let TextService;
 let InstancedMeshPool;
@@ -64,10 +65,6 @@ let MATERIAL_GUI_CONFIGS = null;
 
 const LOADER_STAGE_EVENT = "pepe-loader-stage";
 const LOADER_PROGRESS_EVENT = "pepe-loader-progress";
-const COMPANY_PAIR_URL_INPUT_ENABLED = ["1", "true", "yes", "on"].includes(
-    String(window.PEPE_COMPANY_PAIR_URL_INPUT_ENABLED ?? "").trim().toLowerCase()
-);
-
 const TEXT_GUI_CONFIGS = {
     title: {
         ambientStrength: 0.1,
@@ -125,6 +122,9 @@ class App {
         this.pageBackgroundBlurLayer = this.pageBackground?.querySelector(".page-background-layer-blur") ?? null;
         this.urlInput = document.getElementById("url-input");
         this.urlInputContainer = document.getElementById("url-input-container");
+        this.investigationModeSelector = document.getElementById("investigation-mode-selector");
+        this.investigationModeArticleRadio = document.getElementById("investigation-mode-article");
+        this.investigationModeCompanyPairRadio = document.getElementById("investigation-mode-company-pair");
         this.companyPairInputContainer = document.getElementById("company-pair-input-container");
         this.companyANameInput = document.getElementById("company-a-name");
         this.companyAContextInput = document.getElementById("company-a-context");
@@ -312,6 +312,9 @@ class App {
                 parseJsonRecursively: (value) => this.parseJsonRecursively(value),
                 lookupCompanyPair: (payload) => this.apiService.lookupCompanyPair(payload),
                 startCompanyPairResearch: (payload) => this.apiService.startCompanyPairResearch(payload),
+                getCompanyPairRequestById: (requestId) => this.apiService.getCompanyPairRequestById(requestId),
+                buildCompanyPairArticleObjectFromRequest: (requestRow, ownershipTreeObj) =>
+                    this.apiService.buildCompanyPairArticleObjectFromRequest(requestRow, ownershipTreeObj),
                 createCheckoutSession: (payload) => this.apiService.createCheckoutSession(payload),
                 buyCredits: () => this.buyCredits(),
                 getCurrentUser: () => this.apiService.getCurrentUser(),
@@ -348,8 +351,18 @@ class App {
                 }
             },
             constants: {
-                companyPairUrlInputEnabled: COMPANY_PAIR_URL_INPUT_ENABLED
+                companyPairUrlInputEnabled: false
             }
+        });
+
+        this.investigationModeController = new InvestigationModeController({
+            dom: {
+                root: this.investigationModeSelector,
+                articleRadio: this.investigationModeArticleRadio,
+                companyPairRadio: this.investigationModeCompanyPairRadio
+            },
+            submissionController: this.submissionController,
+            windowRef: this.windowRef
         });
 
         this.debugControlsVisible = false;
@@ -679,6 +692,7 @@ class App {
 
         await this.updateCreditBalance(showCreditControls ? user : null);
         await this.updateAccountPreferences(showSignedInAccountControls ? user : null);
+        this.investigationModeController?.setSignedIn?.(isSignedIn);
         this.updateFundingControls(isTesterAuthorized ? user : null);
         this.updateRunningCostDisplay();
         this.refreshRecentLinksIfHomepageEligible();
@@ -736,7 +750,8 @@ class App {
             }
         }
 
-        return openrouterCost + flyCost;
+        const flatStartCost = Number(article.flat_start_cost_usd ?? 0) || 0;
+        return openrouterCost + flyCost + flatStartCost;
     }
 
     updateRunningCostDisplay(articleObject = this.currentPendingArticleObject) {
@@ -780,6 +795,7 @@ class App {
         const isOngoing =
             status === "queued" ||
             status === "in-progress" ||
+            status === "paused" ||
             status.startsWith("prepass:") ||
             article?.funding_status === "needs_funding";
         const isStarter = isSignedIn && article?.started_by_user_id === user.id;
@@ -796,27 +812,47 @@ class App {
 
     async fundCurrentInvestigation() {
         const currentArticle = this.currentPendingArticleObject?.article ?? null;
-        const queueId = currentArticle?.id ?? null;
-        if (queueId == null) {
+        const investigationId = currentArticle?.id ?? null;
+        if (investigationId == null) {
             return false;
         }
 
-        const { error } = await this.apiService.fundArticleInvestigation(queueId);
+        const isCompanyPair = currentArticle?.mode === "company_pair";
+        const fundResult = isCompanyPair
+            ? await this.apiService.fundCompanyPairInvestigation(investigationId)
+            : await this.apiService.fundArticleInvestigation(investigationId);
+        const error = fundResult.error;
         if (error) {
             this.setAuthStatusMessage(error.message ?? "Could not fund investigation.");
             return false;
         }
 
         this.setAuthStatusMessage("Funding enabled. Restarting investigation.");
-        const articleUrl = currentArticle?.url ?? this.urlInput?.value ?? "";
-        if (articleUrl) {
-            const resumeResult = await this.apiService.resumeArticleInvestigation(articleUrl);
+        if (isCompanyPair) {
+            const resumeResult = await this.apiService.resumeCompanyPairInvestigation(investigationId);
             if (resumeResult.error) {
                 this.setAuthStatusMessage(resumeResult.error.message ?? "Funding enabled, but restart failed.");
-            } else if (resumeResult.data?.queue != null) {
+            } else if (resumeResult.data?.request != null) {
                 await this.handlePendingArticleStateChanged({
-                    article: resumeResult.data.queue
+                    article: {
+                        ...resumeResult.data.request,
+                        id: resumeResult.data.request.id,
+                        mode: "company_pair",
+                        started_by_user_id: resumeResult.data.request.user_id ?? null
+                    }
                 });
+            }
+        } else {
+            const articleUrl = currentArticle?.url ?? this.urlInput?.value ?? "";
+            if (articleUrl) {
+                const resumeResult = await this.apiService.resumeArticleInvestigation(articleUrl);
+                if (resumeResult.error) {
+                    this.setAuthStatusMessage(resumeResult.error.message ?? "Funding enabled, but restart failed.");
+                } else if (resumeResult.data?.queue != null) {
+                    await this.handlePendingArticleStateChanged({
+                        article: resumeResult.data.queue
+                    });
+                }
             }
         }
         await this.updateAuthLinks();
@@ -824,12 +860,17 @@ class App {
     }
 
     async optOutCurrentFunding() {
-        const queueId = this.currentPendingArticleObject?.article?.id ?? null;
-        if (queueId == null) {
+        const currentArticle = this.currentPendingArticleObject?.article ?? null;
+        const investigationId = currentArticle?.id ?? null;
+        if (investigationId == null) {
             return false;
         }
 
-        const { error } = await this.apiService.optOutArticleFunding(queueId);
+        const isCompanyPair = currentArticle?.mode === "company_pair";
+        const result = isCompanyPair
+            ? await this.apiService.optOutCompanyPairFunding(investigationId)
+            : await this.apiService.optOutArticleFunding(investigationId);
+        const error = result.error;
         if (error) {
             this.setAuthStatusMessage(error.message ?? "Could not stop funding.");
             return false;
@@ -1873,6 +1914,9 @@ const LOADER_GROUPS = [
             path: "./controllers/ArticleSubmissionController.js"
         },
         {
+            path: "./controllers/InvestigationModeController.js"
+        },
+        {
             path: "./controllers/ChromeController.js"
         },
         {
@@ -2109,6 +2153,9 @@ const RETRIEVAL_LOADER_GROUPS = [
             path: "./controllers/ArticleSubmissionController.js"
         },
         {
+            path: "./controllers/InvestigationModeController.js"
+        },
+        {
             path: "./services/ArticleApiService.js"
         },
         {
@@ -2195,6 +2242,7 @@ function bindCoreModules() {
     DetailPanelController = getLoadedModule("controllers.DetailPanelController").DetailPanelController;
     SummaryBannerController = getLoadedModule("controllers.SummaryBannerController").SummaryBannerController;
     ArticleSubmissionController = getLoadedModule("controllers.ArticleSubmissionController").ArticleSubmissionController;
+    InvestigationModeController = getLoadedModule("controllers.InvestigationModeController").InvestigationModeController;
     RecentLinksController = getLoadedModule("controllers.RecentLinksController").RecentLinksController;
     TrashMan = getLoadedModule("utils.TrashMan").TrashMan;
 }
